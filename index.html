@@ -1,156 +1,376 @@
 // ==UserScript==
 // @name         FREEDOM-INSIDE - Maps Lead Extractor & WA Blaster
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.2
 // @description  Ekstrak leads Google Maps & WA Blaster otomatis untuk FREEDOM-INSIDE
 // @author       Puguh
 // @match        https://www.google.com/maps/*
 // @grant        none
-// == ==/UserScript==
+// @run-at       document-idle
+// ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
-    // --- GANTI DENGAN URL WEB APP GOOGLE APPS SCRIPT ANDA ---
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwkOanXlqtH-P7mP8TG8TYwSYhSSBJ7GPqMwthojXZ-g-1Zthy3ozMoS6yUQ89IDueZjA/exec";
-    // ---------------------------------------------------------
+    /* =========================================================
+       KONFIGURASI
+       ========================================================= */
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzMr60gyUyRa7d31dnpIM0MrGLcTk7SxFP-b0oj4M0e2p1rqu_ICH0oU-Yj9_DDwRN7bA/exec";
 
+    const CONFIG = {
+        PANEL_ID: 'freedom-floating-panel',
+        MAX_SCROLLS: 15,
+        SCROLL_DELAY: 1800,
+        STAGNANT_LIMIT: 2,
+        BLAST_DELAY: 6000,
+        MAX_BLAST_PER_SESSION: 50,
+        STORAGE_EMAIL_KEY: 'user_email',
+        DEFAULT_EMAIL: 'tamu@freedom.com',
+    };
+
+    /* =========================================================
+       STATE
+       ========================================================= */
     let extractedData = [];
+    let isExtracting = false;
+    let blastTimer = null;
+    let blastIndex = 0;
+    let blastMessage = '';
+    let observer = null;
 
-    // Buat Tombol Melayang di Google Maps
+    /* =========================================================
+       UTILITAS
+       ========================================================= */
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    const setStatus = (txt) => {
+        const el = document.getElementById('freedom-status');
+        if (el) el.textContent = 'Status: ' + txt;
+    };
+
+    const normalizePhone = (raw) => {
+        if (!raw) return '';
+        let p = String(raw).replace(/[^\d+]/g, '');
+        if (p.startsWith('+62')) p = p.substring(1);
+        if (p.startsWith('62')) return p;
+        if (p.startsWith('0')) return '62' + p.substring(1);
+        if (p.startsWith('8')) return '62' + p;
+        return p;
+    };
+
+    const isValidPhone = (p) => /^62\d{8,13}$/.test(p);
+
+    const escapeHTML = (s) =>
+        String(s).replace(/[&<>"']/g, (c) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        }[c]));
+
+    /* =========================================================
+       UI PANEL
+       ========================================================= */
     function createFloatingButton() {
-        if (document.getElementById('freedom-floating-panel')) return;
+        if (document.getElementById(CONFIG.PANEL_ID)) return;
 
         const panel = document.createElement('div');
-        panel.id = 'freedom-floating-panel';
+        panel.id = CONFIG.PANEL_ID;
         panel.innerHTML = `
-            <div style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; background: #1e1e1e; color: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); font-family: sans-serif; width: 280px; border: 2px solid #25D366;">
-                <div style="font-weight: bold; color: #25D366; margin-bottom: 8px; font-size: 14px;">⚡ FREEDOM-INSIDE</div>
-                <div id="freedom-status" style="font-size: 11px; margin-bottom: 10px; color: #aaa;">Status: Siap Ekstrak</div>
-                <button id="btn-extract" style="background: #25D366; color: white; border: none; padding: 8px 12px; border-radius: 6px; width: 100%; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px;">📥 Mulai Ekstrak Data</button>
-                <button id="btn-blast" style="background: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 6px; width: 100%; font-weight: bold; cursor: pointer; font-size: 12px; display: none;">🚀 Buka WA Blaster Panel</button>
+            <div style="position: fixed; bottom: 20px; right: 20px; z-index: 999999;
+                        background: #1e1e1e; color: #fff; padding: 15px; border-radius: 12px;
+                        box-shadow: 0 4px 20px rgba(0,0,0,0.5); font-family: system-ui, sans-serif;
+                        width: 280px; border: 2px solid #25D366;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <div style="font-weight: bold; color: #25D366; font-size: 14px;">⚡ FREEDOM-INSIDE</div>
+                    <button id="freedom-close" title="Tutup"
+                        style="background:transparent; color:#888; border:none; cursor:pointer;
+                               font-size:16px; line-height:1;">×</button>
+                </div>
+                <div id="freedom-status" style="font-size: 11px; margin-bottom: 10px; color: #aaa;">
+                    Status: Siap Ekstrak
+                </div>
+                <div id="freedom-count" style="font-size: 11px; margin-bottom: 10px; color:#25D366; font-weight:bold;">
+                    Leads: 0
+                </div>
+                <button id="btn-extract" style="background: #25D366; color: white; border: none;
+                        padding: 8px 12px; border-radius: 6px; width: 100%; font-weight: bold;
+                        cursor: pointer; font-size: 12px; margin-bottom: 6px;">📥 Mulai Ekstrak Data</button>
+                <button id="btn-blast" style="background: #007bff; color: white; border: none;
+                        padding: 8px 12px; border-radius: 6px; width: 100%; font-weight: bold;
+                        cursor: pointer; font-size: 12px; display: none;">🚀 Buka WA Blaster Panel</button>
+                <button id="btn-stop" style="background: #dc3545; color: white; border: none;
+                        padding: 8px 12px; border-radius: 6px; width: 100%; font-weight: bold;
+                        cursor: pointer; font-size: 12px; display: none; margin-top:6px;">⏹ Stop Blaster</button>
             </div>
         `;
         document.body.appendChild(panel);
 
+        document.getElementById('freedom-close').addEventListener('click', () => panel.remove());
         document.getElementById('btn-extract').addEventListener('click', startExtraction);
         document.getElementById('btn-blast').addEventListener('click', openBlastModal);
+        document.getElementById('btn-stop').addEventListener('click', stopBlaster);
     }
 
-    // Fungsi Otomatis Scroll & Ambil Data Google Maps
-    async function startExtraction() {
-        const statusEl = document.getElementById('freedom-status');
-        const btnExtract = document.getElementById('btn-extract');
-        btnExtract.disabled = true;
-        statusEl.innerText = "Status: Sedang menggulir & menyedot data...";
-        extractedData = [];
+    const updateCount = () => {
+        const el = document.getElementById('freedom-count');
+        if (el) el.textContent = `Leads: ${extractedData.length}`;
+    };
 
-        // Cari elemen panel daftar tempat di Google Maps (biasanya bersilangan dengan role feed)
-        let feed = document.querySelector('div[role="feed"]');
+    /* =========================================================
+       EKSTRAKSI
+       ========================================================= */
+    function findFeed() {
+        return (
+            document.querySelector('div[role="feed"]') ||
+            document.querySelector('div[role="main"] div[role="feed"]')
+        );
+    }
+
+    async function autoScrollFeed(feed) {
+        let lastHeight = 0;
+        let stagnant = 0;
+
+        for (let i = 0; i < CONFIG.MAX_SCROLLS; i++) {
+            feed.scrollTo(0, feed.scrollHeight);
+            await sleep(CONFIG.SCROLL_DELAY);
+
+            const newHeight = feed.scrollHeight;
+            const endMarker = feed.querySelector('span.HlvSq');
+
+            if (newHeight === lastHeight) {
+                stagnant++;
+                if (stagnant >= CONFIG.STAGNANT_LIMIT) break;
+            } else {
+                stagnant = 0;
+            }
+            lastHeight = newHeight;
+
+            setStatus(`Menggulir... (${i + 1}/${CONFIG.MAX_SCROLLS})`);
+            if (endMarker) break;
+        }
+    }
+
+    function extractFromCard(card) {
+        const nameEl = card.querySelector(
+            '.fontHeadlineSmall, h3.fontHeadlineSmall, [role="heading"]'
+        );
+        const name = nameEl ? nameEl.textContent.trim() : '';
+
+        let phone = '';
+
+        // 1) Via aria-label
+        const phoneLabelEl = card.querySelector(
+            '[aria-label*="Telepon"], [aria-label*="Phone"], a[data-item-id^="phone"]'
+        );
+        if (phoneLabelEl) {
+            const label = phoneLabelEl.getAttribute('aria-label') || phoneLabelEl.textContent || '';
+            const m = label.match(/(\+?62|0)[0-9\-\s]{7,15}/);
+            if (m) phone = normalizePhone(m[0]);
+        }
+
+        // 2) Fallback: regex di seluruh teks
+        if (!phone) {
+            const txt = card.textContent || '';
+            const matches = txt.match(/(\+?62|0)[0-9\-\s]{7,15}/g);
+            if (matches) {
+                for (const m of matches) {
+                    const p = normalizePhone(m);
+                    if (isValidPhone(p)) { phone = p; break; }
+                }
+            }
+        }
+
+        return { name, phone };
+    }
+
+    async function startExtraction() {
+        if (isExtracting) return;
+
+        const btnExtract = document.getElementById('btn-extract');
+        const btnBlast = document.getElementById('btn-blast');
+
+        const feed = findFeed();
         if (!feed) {
-            alert("Harap lakukan pencarian di Google Maps terlebih dahulu (contoh: 'Cafe di Yogyakarta') hingga daftar tempat muncul di sebelah kiri!");
-            btnExtract.disabled = false;
-            statusEl.innerText = "Status: Gagal (Buka daftar tempat dulu)";
+            alert("Harap lakukan pencarian di Google Maps terlebih dahulu\n" +
+                  "(contoh: 'Cafe di Yogyakarta') hingga daftar tempat muncul di sebelah kiri!");
+            setStatus('Gagal (buka daftar tempat dulu)');
             return;
         }
 
-        // Auto-scroll ke bawah untuk memuat data sebanyak-banyaknya
-        let lastHeight = feed.scrollHeight;
-        for (let i = 0; i < 10; i++) { // Maksimal 10 kali scroll otomatis
-            feed.scrollTo(0, feed.scrollHeight);
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            if (feed.scrollHeight === lastHeight) break;
-            lastHeight = feed.scrollHeight;
-        }
+        isExtracting = true;
+        extractedData = [];
+        updateCount();
+        btnExtract.disabled = true;
+        btnExtract.textContent = '⏳ Sedang Ekstrak...';
+        setStatus('Menggulir & menyedot data...');
 
-        // Ambil elemen kartu bisnis
-        let items = document.querySelectorAll('div[role="feed"] > div > div[jsaction]');
-        items.forEach(item => {
-            let nameEl = item.querySelector('.fontHeadlineSmall');
-            let phoneEl = item.querySelector('span[aria-label*="Telepon"], span.USccKb'); // Deteksi nomor telepon
-            
-            let name = nameEl ? nameEl.innerText.trim() : "Tanpa Nama";
-            let phone = "";
+        try {
+            await autoScrollFeed(feed);
 
-            // Cari teks yang mirip nomor telepon di dalam kartu
-            let textContent = item.innerText;
-            let phoneMatch = textContent.match(/(\+62|62|0)[0-9\- ]{8,15}/);
-            if (phoneMatch) {
-                phone = phoneMatch[0].replace(/[\-\s]/g, '');
-                if (phone.startsWith('0')) phone = '62' + phone.substring(1);
+            const cards = feed.querySelectorAll(
+                'div.Nv2PK, div[jsaction][data-cid], div[role="article"]'
+            );
+
+            cards.forEach((card) => {
+                const { name, phone } = extractFromCard(card);
+                if (!name || !phone) return;
+                if (!isValidPhone(phone)) return;
+                if (extractedData.some((d) => d.phone === phone)) return;
+                extractedData.push({ name, phone });
+            });
+
+            updateCount();
+            setStatus(`Berhasil! ${extractedData.length} leads valid.`);
+
+            if (extractedData.length > 0) {
+                btnBlast.style.display = 'block';
+                await syncToCloud(extractedData);
+            } else {
+                alert('Nomor WhatsApp/Telepon tidak ditemukan.\n' +
+                      'Pastikan kartu tempat memuat info kontak (klik tiap tempat untuk memverifikasi).');
             }
-
-            if (name !== "Tanpa Nama" && phone) {
-                // Hindari duplikat
-                if (!extractedData.some(d => d.phone === phone)) {
-                    extractedData.push({ name: name, phone: phone });
-                }
-            }
-        });
-
-        statusEl.innerText = `Berhasil! Ditemukan ${extractedData.length} leads valid.`;
-        btnExtract.disabled = false;
-
-        if (extractedData.length > 0) {
-            document.getElementById('btn-blast').style.display = 'block';
-            syncToCloud(extractedData);
-        } else {
-            alert("Nomor WhatsApp/Telepon tidak ditemukan pada halaman ini. Pastikan tampilan Google Maps sudah memuat informasi kontak.");
+        } catch (err) {
+            console.error('[FREEDOM] Ekstraksi gagal:', err);
+            setStatus('Error: ' + err.message);
+        } finally {
+            isExtracting = false;
+            btnExtract.disabled = false;
+            btnExtract.textContent = '📥 Mulai Ekstrak Data';
         }
     }
 
-    // Kirim Data Otomatis ke Backend Google Sheets
-    function syncToCloud(leads) {
-        const userEmail = localStorage.getItem('user_email') || 'tamu@freedom.com';
-        fetch(WEB_APP_URL, {
-            method: 'POST',
-            body: JSON.stringify({
-                action: "saveLeads",
-                email: userEmail,
-                leads: leads
-            })
-        })
-        .then(res => res.json())
-        .then(data => console.log("Cloud Sync:", data))
-        .catch(err => console.error("Gagal sinkron cloud:", err));
+    /* =========================================================
+       SINKRONISASI CLOUD
+       ========================================================= */
+    async function syncToCloud(leads) {
+        const userEmail = localStorage.getItem(CONFIG.STORAGE_EMAIL_KEY) || CONFIG.DEFAULT_EMAIL;
+        try {
+            const res = await fetch(WEB_APP_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                    action: 'saveLeads',
+                    email: userEmail,
+                    leads: leads,
+                }),
+                redirect: 'follow',
+            });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json().catch(() => ({}));
+            console.log('[FREEDOM] Cloud Sync OK:', data);
+            setStatus(`Tersimpan di cloud (${leads.length} leads).`);
+        } catch (err) {
+            console.error('[FREEDOM] Gagal sinkron cloud:', err);
+            setStatus('Gagal sinkron cloud (data tetap lokal).');
+        }
     }
 
-    // Tampilkan Panel WA Blaster Sederhana
+    /* =========================================================
+       WA BLASTER
+       ========================================================= */
+    function stopBlaster() {
+        if (blastTimer) {
+            clearTimeout(blastTimer);
+            blastTimer = null;
+        }
+        const btnStop = document.getElementById('btn-stop');
+        if (btnStop) btnStop.style.display = 'none';
+        setStatus('Blaster dihentikan.');
+    }
+
     function openBlastModal() {
-        let msg = prompt("Masukkan template pesan WhatsApp untuk dikirim ke leads:", "Halo Kak, salam kenal dari FREEDOM-INSIDE. Kami lihat bisnisnya sangat menarik...");
-        if (!msg) return;
+        if (!extractedData.length) {
+            alert('Tidak ada leads untuk diblast.');
+            return;
+        }
+        if (blastTimer) {
+            alert('Blaster masih berjalan. Klik "Stop Blaster" dulu.');
+            return;
+        }
 
-        let index = 0;
-        function sendNext() {
-            if (index >= extractedData.length) {
-                alert("Semua antrean WhatsApp Blaster selesai!");
+        const msg = prompt(
+            'Masukkan template pesan WhatsApp (gunakan {nama} untuk nama bisnis):',
+            'Halo Kak {nama}, salam kenal dari FREEDOM-INSIDE. Kami lihat bisnisnya sangat menarik...'
+        );
+        if (!msg || !msg.trim()) return;
+
+        const total = Math.min(extractedData.length, CONFIG.MAX_BLAST_PER_SESSION);
+        if (!confirm(
+            `Kirim pesan ke ${total} leads?\n` +
+            `- Jeda: ${CONFIG.BLAST_DELAY / 1000} detik\n` +
+            `- Batas sesi: ${CONFIG.MAX_BLAST_PER_SESSION} leads\n` +
+            `- Izinkan popup untuk situs ini!`
+        )) return;
+
+        blastMessage = msg;
+        blastIndex = 0;
+
+        const btnStop = document.getElementById('btn-stop');
+        btnStop.style.display = 'block';
+        setStatus(`Blaster aktif: 0/${total}`);
+
+        const sendNext = () => {
+            if (blastIndex >= total) {
+                setStatus('Blaster selesai!');
+                btnStop.style.display = 'none';
+                blastTimer = null;
+                alert('Semua antrean WhatsApp Blaster selesai!');
                 return;
             }
-            let lead = extractedData[index];
-            index++;
-            
-            let waUrl = `https://api.whatsapp.com/send?phone=${lead.phone}&text=${encodeURIComponent(msg.replace('{nama}', lead.name))}`;
-            window.open(waUrl, '_blank');
 
-            // Jeda 5 detik otomatis sebelum lanjut ke kontak berikutnya agar aman
-            setTimeout(sendNext, 5000);
-        }
+            const lead = extractedData[blastIndex++];
+            const text = blastMessage.replace(/\{nama\}/g, lead.name);
+            const waUrl = `https://api.whatsapp.com/send?phone=${lead.phone}&text=${encodeURIComponent(text)}`;
+
+            const win = window.open(waUrl, '_blank');
+            if (!win) {
+                alert('Popup diblokir!\nIzinkan popup untuk google.com lalu ulangi.');
+                stopBlaster();
+                return;
+            }
+
+            setStatus(`Blaster aktif: ${blastIndex}/${total} (${lead.name})`);
+            blastTimer = setTimeout(sendNext, CONFIG.BLAST_DELAY);
+        };
 
         sendNext();
     }
 
-    // Jalankan pembuat tombol saat halaman Google Maps siap
-    window.addEventListener('load', () => {
-        setTimeout(createFloatingButton, 3000);
-    });
+    /* =========================================================
+       SPA HANDLING (Google Maps)
+       ========================================================= */
+    function mountWhenReady() {
+        let tries = 0;
+        const iv = setInterval(() => {
+            tries++;
+            if (document.body) createFloatingButton();
+            if (document.getElementById(CONFIG.PANEL_ID) || tries > 30) {
+                clearInterval(iv);
+            }
+        }, 1000);
+    }
 
-    // Deteksi jika halaman berubah (SPA Google Maps)
-    let lastUrl = location.href;
-    new MutationObserver(() => {
-        if (location.href !== lastUrl) {
-            lastUrl = location.href;
-            setTimeout(createFloatingButton, 2000);
-        }
-    }).observe(document, {subtree: true, childList: true});
+    function setupObserver() {
+        if (observer) observer.disconnect();
+        let lastUrl = location.href;
+        observer = new MutationObserver(() => {
+            if (location.href !== lastUrl) {
+                lastUrl = location.href;
+                setTimeout(() => {
+                    if (!document.getElementById(CONFIG.PANEL_ID)) createFloatingButton();
+                }, 1500);
+            }
+        });
+        observer.observe(document.body || document.documentElement, {
+            subtree: true,
+            childList: true,
+        });
+    }
+
+    /* =========================================================
+       BOOT
+       ========================================================= */
+    window.addEventListener('load', () => {
+        setTimeout(mountWhenReady, 2000);
+        setupObserver();
+    });
 
 })();
