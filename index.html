@@ -1,292 +1,156 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FREEDOM-INSIDE | Lead Maps & WA Blaster</title>
-    <meta name="theme-color" content="#25D366">
-    <style>
-        :root {
-            --bg-color: #f4f7f6;
-            --card-bg: #ffffff;
-            --text-color: #333333;
-            --subtext-color: #666666;
-            --border-color: #ddd;
-            --accent-color: #25D366;
-        }
-        [data-theme="dark"] {
-            --bg-color: #121212;
-            --card-bg: #1e1e1e;
-            --text-color: #e0e0e0;
-            --subtext-color: #aaaaaa;
-            --border-color: #333;
-            --accent-color: #2ea44f;
-        }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg-color); color: var(--text-color); margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; transition: background 0.3s; }
-        .card { background: var(--card-bg); padding: 25px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.1); width: 100%; max-width: 440px; position: relative; padding-top: 55px; }
-        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); border-radius: 8px; box-sizing: border-box; }
-        button { background: var(--accent-color); color: white; border: none; padding: 12px 16px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; font-size: 14px; margin-top: 8px; }
-        button:hover { opacity: 0.9; }
-        .btn-admin { background: #007bff; }
-        .btn-maps { background: #4285F4; }
-        .btn-danger { background: #e74c3c; }
-        .top-bar { position: absolute; top: 15px; left: 20px; right: 20px; display: flex; justify-content: space-between; }
-        .btn-small { background: transparent; color: var(--text-color); border: 1px solid var(--border-color); width: auto; padding: 5px 10px; font-size: 12px; margin: 0; border-radius: 6px; }
-        .hidden { display: none; }
-        .info { font-size: 13px; color: var(--subtext-color); margin-bottom: 15px; }
-        .brand-subtitle { font-size: 11px; letter-spacing: 2px; color: var(--accent-color); font-weight: bold; text-transform: uppercase; margin-bottom: 5px; }
-        
-        .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
-        .stat-box { background: rgba(128,128,128,0.08); padding: 12px; border-radius: 10px; text-align: center; border: 1px solid var(--border-color); }
-        .stat-num { font-size: 18px; font-weight: bold; color: var(--accent-color); }
-        .stat-label { font-size: 11px; color: var(--subtext-color); margin-top: 4px; }
-        .history-box, .user-list-box { background: rgba(128,128,128,0.05); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; font-size: 12px; text-align: left; max-height: 220px; overflow-y: auto; margin-bottom: 15px; }
-        .user-item { border-bottom: 1px solid var(--border-color); padding: 8px 0; display: flex; justify-content: space-between; align-items: center; }
-        .user-item:last-child { border-bottom: none; }
-        .badge-active { color: #25D366; font-weight: bold; }
-        .badge-exp { color: #e74c3c; font-weight: bold; }
-        .btn-edit-mini { width: auto; padding: 5px 10px; font-size: 11px; margin: 0; background: #ff9800; }
-        #expired-box { background: rgba(255, 235, 238, 0.9); border: 1px solid #ffcdd2; padding: 15px; border-radius: 8px; margin-top: 15px; display: none; }
-    </style>
-</head>
-<body>
+// ==UserScript==
+// @name         FREEDOM-INSIDE - Maps Lead Extractor & WA Blaster
+// @namespace    http://tampermonkey.net/
+// @version      1.0
+// @description  Ekstrak leads Google Maps & WA Blaster otomatis untuk FREEDOM-INSIDE
+// @author       Puguh
+// @match        https://www.google.com/maps/*
+// @grant        none
+// == ==/UserScript==
 
-    <div class="card">
-        <div class="top-bar">
-            <button class="btn-small" onclick="toggleAdminView()">⚙️ Admin</button>
-            <button class="btn-small" onclick="toggleTheme()">🌓 Tema</button>
-        </div>
+(function() {
+    'use strict';
 
-        <!-- 1. HALAMAN LOGIN USER -->
-        <div id="login-section">
-            <div class="brand-subtitle">FREEDOM-INSIDE</div>
-            <h2>🔒 Portal Akses</h2>
-            <p class="info">Masukkan email terdaftar Anda untuk masuk ke aplikasi.</p>
-            <input type="email" id="user-email" placeholder="nama@email.com" required>
-            <button onclick="handleLogin()">Masuk / Cek Akun</button>
+    // --- GANTI DENGAN URL WEB APP GOOGLE APPS SCRIPT ANDA ---
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwkOanXlqtH-P7mP8TG8TYwSYhSSBJ7GPqMwthojXZ-g-1Zthy3ozMoS6yUQ89IDueZjA/exec";
+    // ---------------------------------------------------------
 
-            <div id="expired-box">
-                <p id="expired-msg" style="color: #c62828; font-size: 13px; font-weight: bold; margin: 0 0 10px 0;"></p>
-                <button class="btn-admin" onclick="contactAdmin()">💬 Hubungi Admin via WhatsApp</button>
+    let extractedData = [];
+
+    // Buat Tombol Melayang di Google Maps
+    function createFloatingButton() {
+        if (document.getElementById('freedom-floating-panel')) return;
+
+        const panel = document.createElement('div');
+        panel.id = 'freedom-floating-panel';
+        panel.innerHTML = `
+            <div style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; background: #1e1e1e; color: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); font-family: sans-serif; width: 280px; border: 2px solid #25D366;">
+                <div style="font-weight: bold; color: #25D366; margin-bottom: 8px; font-size: 14px;">⚡ FREEDOM-INSIDE</div>
+                <div id="freedom-status" style="font-size: 11px; margin-bottom: 10px; color: #aaa;">Status: Siap Ekstrak</div>
+                <button id="btn-extract" style="background: #25D366; color: white; border: none; padding: 8px 12px; border-radius: 6px; width: 100%; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px;">📥 Mulai Ekstrak Data</button>
+                <button id="btn-blast" style="background: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 6px; width: 100%; font-weight: bold; cursor: pointer; font-size: 12px; display: none;">🚀 Buka WA Blaster Panel</button>
             </div>
-        </div>
+        `;
+        document.body.appendChild(panel);
 
-        <!-- 2. HALAMAN UTAMA USER / DASHBOARD -->
-        <div id="app-section" class="hidden">
-            <div class="brand-subtitle">FREEDOM-INSIDE</div>
-            <h2>📊 Dashboard Lead</h2>
-            <p class="info" id="welcome-msg" style="margin-bottom: 10px;"></p>
+        document.getElementById('btn-extract').addEventListener('click', startExtraction);
+        document.getElementById('btn-blast').addEventListener('click', openBlastModal);
+    }
+
+    // Fungsi Otomatis Scroll & Ambil Data Google Maps
+    async function startExtraction() {
+        const statusEl = document.getElementById('freedom-status');
+        const btnExtract = document.getElementById('btn-extract');
+        btnExtract.disabled = true;
+        statusEl.innerText = "Status: Sedang menggulir & menyedot data...";
+        extractedData = [];
+
+        // Cari elemen panel daftar tempat di Google Maps (biasanya bersilangan dengan role feed)
+        let feed = document.querySelector('div[role="feed"]');
+        if (!feed) {
+            alert("Harap lakukan pencarian di Google Maps terlebih dahulu (contoh: 'Cafe di Yogyakarta') hingga daftar tempat muncul di sebelah kiri!");
+            btnExtract.disabled = false;
+            statusEl.innerText = "Status: Gagal (Buka daftar tempat dulu)";
+            return;
+        }
+
+        // Auto-scroll ke bawah untuk memuat data sebanyak-banyaknya
+        let lastHeight = feed.scrollHeight;
+        for (let i = 0; i < 10; i++) { // Maksimal 10 kali scroll otomatis
+            feed.scrollTo(0, feed.scrollHeight);
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            if (feed.scrollHeight === lastHeight) break;
+            lastHeight = feed.scrollHeight;
+        }
+
+        // Ambil elemen kartu bisnis
+        let items = document.querySelectorAll('div[role="feed"] > div > div[jsaction]');
+        items.forEach(item => {
+            let nameEl = item.querySelector('.fontHeadlineSmall');
+            let phoneEl = item.querySelector('span[aria-label*="Telepon"], span.USccKb'); // Deteksi nomor telepon
             
-            <div class="dashboard-grid">
-                <div class="stat-box">
-                    <div class="stat-num" id="quota-display">100</div>
-                    <div class="stat-label">Sisa Kuota Ekstraksi</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-num" style="color: #4285F4;" id="expiry-display">-</div>
-                    <div class="stat-label">Masa Aktif Akun</div>
-                </div>
-            </div>
+            let name = nameEl ? nameEl.innerText.trim() : "Tanpa Nama";
+            let phone = "";
 
-            <div style="font-size: 13px; font-weight: bold; text-align: left; margin-bottom: 5px;">📜 Riwayat Aktivitas Terakhir:</div>
-            <div class="history-box" id="history-list">
-                <div>• Belum ada aktivitas ekstraksi sesi ini.</div>
-            </div>
+            // Cari teks yang mirip nomor telepon di dalam kartu
+            let textContent = item.innerText;
+            let phoneMatch = textContent.match(/(\+62|62|0)[0-9\- ]{8,15}/);
+            if (phoneMatch) {
+                phone = phoneMatch[0].replace(/[\-\s]/g, '');
+                if (phone.startsWith('0')) phone = '62' + phone.substring(1);
+            }
 
-            <button class="btn-maps" onclick="openGoogleMaps()">📍 Buka Google Maps & Ekstrak</button>
-            <button class="btn-danger" onclick="logout()">Keluar Akun</button>
-        </div>
-
-        <!-- 3. HALAMAN KHUSUS ADMIN -->
-        <div id="admin-section" class="hidden">
-            <div class="brand-subtitle">FREEDOM-INSIDE</div>
-            <h2>🛡️ Panel Administrator</h2>
-            
-            <div id="admin-login-box">
-                <p class="info">Masukkan sandi Administrator untuk mengelola pengguna.</p>
-                <input type="password" id="admin-pass" placeholder="Sandi Admin">
-                <button class="btn-admin" onclick="loginAdmin()">Buka Panel Admin</button>
-            </div>
-
-            <div id="admin-dashboard-box" class="hidden">
-                <p class="info" style="margin-bottom: 8px;">Daftar Pengguna Terdaftar:</p>
-                <div class="user-list-box" id="admin-user-list">
-                    Memuat data...
-                </div>
-                <button class="btn-small" style="width: 100%; margin-bottom: 8px;" onclick="loginAdmin()">🔄 Segarkan Data User</button>
-            </div>
-
-            <button class="btn-danger" onclick="closeAdminView()" style="margin-top: 10px;">Kembali ke Halaman User</button>
-        </div>
-    </div>
-
-    <script>
-        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxZuZjMPpiD7dS55irnfxXosGuWLTTF2guUxnqNZBLr636DwLRz__vYdIZ8MsGox2oVGw/exec";
-        const ADMIN_PHONE = "6289653135369"; // Ganti nomor WhatsApp Admin Anda
-        let currentAdminPass = "";
-
-        function toggleTheme() {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-theme', newTheme);
-            localStorage.setItem('theme', newTheme);
-        }
-
-        window.addEventListener('DOMContentLoaded', () => {
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            document.documentElement.setAttribute('data-theme', savedTheme);
+            if (name !== "Tanpa Nama" && phone) {
+                // Hindari duplikat
+                if (!extractedData.some(d => d.phone === phone)) {
+                    extractedData.push({ name: name, phone: phone });
+                }
+            }
         });
 
-        function toggleAdminView() {
-            document.getElementById('login-section').classList.add('hidden');
-            document.getElementById('app-section').classList.add('hidden');
-            document.getElementById('admin-section').classList.remove('hidden');
+        statusEl.innerText = `Berhasil! Ditemukan ${extractedData.length} leads valid.`;
+        btnExtract.disabled = false;
+
+        if (extractedData.length > 0) {
+            document.getElementById('btn-blast').style.display = 'block';
+            syncToCloud(extractedData);
+        } else {
+            alert("Nomor WhatsApp/Telepon tidak ditemukan pada halaman ini. Pastikan tampilan Google Maps sudah memuat informasi kontak.");
         }
+    }
 
-        function closeAdminView() {
-            document.getElementById('admin-section').classList.add('hidden');
-            const savedEmail = localStorage.getItem('user_email');
-            if (savedEmail) {
-                document.getElementById('app-section').classList.remove('hidden');
-            } else {
-                document.getElementById('login-section').classList.remove('hidden');
-            }
-        }
-
-        function loginAdmin() {
-            const passInput = document.getElementById('admin-pass').value || currentAdminPass;
-            if (!passInput) return alert("Masukkan sandi admin!");
-
-            fetch(WEB_APP_URL, {
-                method: 'POST',
-                body: JSON.stringify({ action: "adminLogin", password: passInput })
+    // Kirim Data Otomatis ke Backend Google Sheets
+    function syncToCloud(leads) {
+        const userEmail = localStorage.getItem('user_email') || 'tamu@freedom.com';
+        fetch(WEB_APP_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+                action: "saveLeads",
+                email: userEmail,
+                leads: leads
             })
-            .then(res => res.json())
-            .then(data => {
-                if (data.status === "error") {
-                    alert(data.message);
-                } else if (data.status === "success") {
-                    currentAdminPass = passInput;
-                    document.getElementById('admin-login-box').classList.add('hidden');
-                    document.getElementById('admin-dashboard-box').classList.remove('hidden');
-                    renderAdminUsers(data.users);
-                }
-            })
-            .catch(err => alert("Gagal terhubung ke server."));
-        }
+        })
+        .then(res => res.json())
+        .then(data => console.log("Cloud Sync:", data))
+        .catch(err => console.error("Gagal sinkron cloud:", err));
+    }
 
-        function renderAdminUsers(users) {
-            const container = document.getElementById('admin-user-list');
-            container.innerHTML = "";
-            if (users.length === 0) {
-                container.innerHTML = "Belum ada user terdaftar.";
+    // Tampilkan Panel WA Blaster Sederhana
+    function openBlastModal() {
+        let msg = prompt("Masukkan template pesan WhatsApp untuk dikirim ke leads:", "Halo Kak, salam kenal dari FREEDOM-INSIDE. Kami lihat bisnisnya sangat menarik...");
+        if (!msg) return;
+
+        let index = 0;
+        function sendNext() {
+            if (index >= extractedData.length) {
+                alert("Semua antrean WhatsApp Blaster selesai!");
                 return;
             }
+            let lead = extractedData[index];
+            index++;
+            
+            let waUrl = `https://api.whatsapp.com/send?phone=${lead.phone}&text=${encodeURIComponent(msg.replace('{nama}', lead.name))}`;
+            window.open(waUrl, '_blank');
 
-            users.forEach(u => {
-                let statusBadge = u.isExpired ? `<span class="badge-exp">Expired (${u.expiry})</span>` : `<span class="badge-active">Aktif s.d ${u.expiry}</span>`;
-                let div = document.createElement('div');
-                div.className = 'user-item';
-                div.innerHTML = `
-                    <div>
-                        <b>${u.email}</b><br>
-                        ${statusBadge} • Kuota: <b>${u.quota}</b>
-                    </div>
-                    <button class="btn-edit-mini" onclick="editUser('${u.email}', ${u.quota})">Kelola</button>
-                `;
-                container.appendChild(div);
-            });
+            // Jeda 5 detik otomatis sebelum lanjut ke kontak berikutnya agar aman
+            setTimeout(sendNext, 5000);
         }
 
-        function editUser(email, currentQuota) {
-            let addDays = prompt(`Perpanjang masa aktif untuk ${email}?\nMasukkan jumlah hari tambahan (isi 0 jika tidak menambah hari):`, "30");
-            if (addDays === null) return;
+        sendNext();
+    }
 
-            let newQuota = prompt(`Atur jumlah kuota baru untuk ${email}:`, currentQuota);
-            if (newQuota === null) return;
+    // Jalankan pembuat tombol saat halaman Google Maps siap
+    window.addEventListener('load', () => {
+        setTimeout(createFloatingButton, 3000);
+    });
 
-            fetch(WEB_APP_URL, {
-                method: 'POST',
-                body: JSON.stringify({
-                    action: "adminUpdateUser",
-                    password: currentAdminPass,
-                    targetEmail: email,
-                    addDays: parseInt(addDays) || 0,
-                    newQuota: parseInt(newQuota)
-                })
-            })
-            .then(res => res.json())
-            .then(data => {
-                alert(data.message);
-                loginAdmin();
-            })
-            .catch(err => alert("Gagal memperbarui data user."));
+    // Deteksi jika halaman berubah (SPA Google Maps)
+    let lastUrl = location.href;
+    new MutationObserver(() => {
+        if (location.href !== lastUrl) {
+            lastUrl = location.href;
+            setTimeout(createFloatingButton, 2000);
         }
+    }).observe(document, {subtree: true, childList: true});
 
-        function handleLogin() {
-            const emailInput = document.getElementById('user-email').value.trim();
-            if(!emailInput || !emailInput.includes('@')) {
-                alert('Masukkan alamat email yang valid!');
-                return;
-            }
-
-            const btn = event.target;
-            btn.innerText = 'Memeriksa...';
-            btn.disabled = true;
-            document.getElementById('expired-box').style.display = 'none';
-
-            fetch(WEB_APP_URL, {
-                method: 'POST',
-                body: JSON.stringify({ action: "registerOrLogin", email: emailInput })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.status === "expired") {
-                    document.getElementById('expired-msg').innerHTML = `⚠️ <b>MASA AKTIF HABIS!</b><br>${data.message}`;
-                    document.getElementById('expired-box').style.display = 'block';
-                    btn.innerText = 'Masuk / Cek Akun';
-                    btn.disabled = false;
-                } else if (data.status === "success") {
-                    localStorage.setItem('user_email', emailInput);
-                    showDashboard(emailInput, data.expiry, data.quota);
-                }
-            })
-            .catch(err => {
-                localStorage.setItem('user_email', emailInput);
-                showDashboard(emailInput, "Aktif", 100);
-            });
-        }
-
-        function showDashboard(email, expiry, quota) {
-            document.getElementById('login-section').classList.add('hidden');
-            document.getElementById('app-section').classList.remove('hidden');
-            document.getElementById('welcome-msg').innerText = `Halo, ${email}`;
-            document.getElementById('expiry-display').innerText = expiry;
-            document.getElementById('quota-display').innerText = quota;
-        }
-
-        function contactAdmin() {
-            const emailInput = document.getElementById('user-email').value.trim();
-            let text = `Halo Admin, akun aplikasi *FREEDOM-INSIDE* saya kedaluwarsa.\nEmail: *${emailInput}*\nMohon bantuannya untuk perpanjang masa aktif.`;
-            window.open(`https://api.whatsapp.com/send?phone=${ADMIN_PHONE}&text=${encodeURIComponent(text)}`, '_blank');
-        }
-
-        function openGoogleMaps() {
-            window.open('https://www.google.com/maps', '_blank');
-        }
-
-        function logout() {
-            localStorage.removeItem('user_email');
-            location.reload();
-        }
-
-        window.onload = function() {
-            const savedEmail = localStorage.getItem('user_email');
-            if (savedEmail) {
-                document.getElementById('user-email').value = savedEmail;
-                handleLogin();
-            }
-        }
-    </script>
-</body>
-</html>
+})();
