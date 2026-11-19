@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TOKO KITA - Katalog Online</title>
+    <script src="config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 pb-24">
+
+    <!-- Header -->
+    <header class="bg-emerald-600 text-white p-4 shadow-md sticky top-0 z-10">
+        <div class="max-w-md mx-auto flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold">TOKO KITA</h1>
+                <p class="text-xs text-emerald-100">Katalog Produk Resmi</p>
+            </div>
+            <button onclick="openVendorModal()" class="text-xs bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg font-medium transition">
+                + Daftar Penjual
+            </button>
+        </div>
+    </header>
+
+    <!-- Katalog Produk -->
+    <main class="max-w-md mx-auto p-4">
+        <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Daftar Produk</h2>
+        <div id="product-list" class="grid grid-cols-2 gap-3">
+            <p class="text-xs text-gray-400 col-span-2 text-center py-6">Memuat produk...</p>
+        </div>
+    </main>
+
+    <!-- Floating Cart Bar -->
+    <div id="cart-bar" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg hidden z-20">
+        <div class="max-w-md mx-auto flex justify-between items-center">
+            <div>
+                <p class="text-xs text-gray-500">Total Belanja (<span id="cart-count">0</span> item):</p>
+                <p id="cart-total" class="font-bold text-emerald-600 text-lg">Rp 0</p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="clearCart()" class="bg-red-50 hover:bg-red-100 text-red-600 font-medium px-3 py-2.5 rounded-xl text-xs transition" title="Kosongkan Keranjang">
+                    Hapus
+                </button>
+                <button onclick="openCheckoutModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-5 py-2.5 rounded-xl shadow transition text-sm">
+                    Checkout
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Checkout & Kelola Keranjang Pembeli -->
+    <div id="checkout-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4 border-b pb-3">
+                <h3 class="font-bold text-lg">Keranjang & Checkout</h3>
+                <button onclick="closeCheckoutModal()" class="text-gray-400 hover:text-gray-600 font-bold text-2xl leading-none">&times;</button>
+            </div>
+
+            <!-- Daftar Item di Keranjang -->
+            <div class="mb-4">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-semibold text-gray-500 uppercase">Daftar Belanjaan</span>
+                    <button onclick="clearCart()" class="text-xs text-red-500 hover:underline">Hapus Semua</button>
+                </div>
+                <div id="checkout-cart-list" class="space-y-2 max-h-48 overflow-y-auto pr-1"></div>
+                <div class="flex justify-between items-center border-t pt-2 mt-2 font-bold text-sm">
+                    <span>Total Pembayaran</span>
+                    <span id="modal-cart-total" class="text-emerald-600">Rp 0</span>
+                </div>
+            </div>
+
+            <!-- Form Data Pembeli -->
+            <div class="space-y-3 mb-4 border-t pt-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Nama Pemesan</label>
+                    <input type="text" id="buyer-name" placeholder="Nama Lengkap" class="w-full border rounded-lg p-2.5 text-sm outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">No WhatsApp</label>
+                    <input type="text" id="buyer-phone" placeholder="628..." class="w-full border rounded-lg p-2.5 text-sm outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Alamat Pengiriman</label>
+                    <textarea id="buyer-address" rows="2" placeholder="Alamat lengkap..." class="w-full border rounded-lg p-2.5 text-sm outline-none focus:border-emerald-500"></textarea>
+                </div>
+            </div>
+
+            <!-- Nota Tersembunyi -->
+            <div id="receipt-area" class="bg-white p-4 border border-dashed rounded-xl mb-4 hidden">
+                <div class="text-center border-b pb-2 mb-2">
+                    <h4 class="font-bold text-gray-800">NOTA PESANAN - TOKO KITA</h4>
+                </div>
+                <div class="text-xs space-y-1 mb-2">
+                    <p><strong>Pemesan:</strong> <span id="r-name">-</span></p>
+                    <p><strong>Alamat:</strong> <span id="r-address">-</span></p>
+                </div>
+                <div id="receipt-items" class="text-xs space-y-1 border-t border-b py-2 mb-2"></div>
+                <div class="flex justify-between text-xs font-bold">
+                    <span>Total:</span>
+                    <span id="r-total">Rp 0</span>
+                </div>
+            </div>
+
+            <button id="btn-checkout" onclick="processCheckout()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 rounded-xl text-sm shadow transition">
+                Kirim Pesanan via WhatsApp
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal Preview & Share Gambar Produk -->
+    <div id="share-modal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="font-bold text-base text-gray-800">Bagikan Kartu Produk</h3>
+                <button onclick="closeShareModal()" class="text-gray-400 hover:text-gray-600 font-bold text-2xl leading-none">&times;</button>
+            </div>
+            <div id="product-share-card" class="bg-white p-5 rounded-2xl border-2 border-emerald-100 shadow-sm mb-4">
+                <div class="text-center mb-3">
+                    <span class="text-[11px] bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full font-bold tracking-wide">TOKO KITA</span>
+                </div>
+                <div class="w-full h-44 bg-gray-100 rounded-xl mb-3 overflow-hidden flex items-center justify-center">
+                    <img id="share-img" src="" class="w-full h-full object-cover">
+                </div>
+                <h2 id="share-name" class="font-bold text-base text-gray-800 mb-1">Nama Produk</h2>
+                <p id="share-price" class="text-emerald-600 font-extrabold text-xl mb-3">Rp 0</p>
+                <div class="border-t pt-2.5 flex justify-between items-center text-[11px] text-gray-400">
+                    <span>Order via WhatsApp</span>
+                    <span class="font-semibold text-emerald-600">TOKO KITA</span>
+                </div>
+            </div>
+            <div class="space-y-2">
+                <button id="btn-execute-share" onclick="executeShareProduct()" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 rounded-xl text-sm shadow flex items-center justify-center gap-2 transition">
+                    <span>📤 Bagikan Gambar ke WhatsApp</span>
+                </button>
+                <button onclick="downloadShareProductOnly()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2.5 rounded-xl text-xs transition">
+                    Simpan Gambar ke Galeri
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Daftar Vendor/Penjual -->
+    <div id="vendor-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold text-lg">Pendaftaran Kontributor TOKO KITA</h3>
+                <button onclick="closeVendorModal()" class="text-gray-400 font-bold text-2xl leading-none">&times;</button>
+            </div>
+            <div class="space-y-3 mb-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Nama Usaha / Penjual</label>
+                    <input type="text" id="v-name" placeholder="Nama Toko Anda" class="w-full border rounded-lg p-2.5 text-sm outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">No WhatsApp Anda</label>
+                    <input type="text" id="v-phone" placeholder="628..." class="w-full border rounded-lg p-2.5 text-sm outline-none">
+                </div>
+            </div>
+            <div id="vendor-receipt-area" class="bg-white p-4 border border-dashed rounded-xl mb-4 hidden">
+                <h4 class="font-bold text-center text-sm mb-2">NOTA PENDAFTARAN MITRA</h4>
+                <p class="text-xs"><strong>Nama:</strong> <span id="vr-name">-</span></p>
+            </div>
+            <button id="btn-vendor" onclick="submitVendorRegistration()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-medium text-sm">
+                Kirim Pendaftaran via WhatsApp
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.TOKO_CONFIG?.API_URL || "";
+        const OWNER_WA = window.TOKO_CONFIG?.OWNER_WA || "";
+        let products = [];
+        let cart = {};
+        let currentShareProduct = null;
+
+        function getBaseUrl() {
+            const path = window.location.pathname.replace(/\/[^/]*$/, '');
+            return window.location.origin + path;
+        }
+
+        async function fetchProducts() {
+            if (!API_URL || API_URL.includes("ISI_URL")) {
+                document.getElementById('product-list').innerHTML =
+                    '<p class="text-xs text-red-500 col-span-2 text-center py-6">URL API belum diatur di config.js.</p>';
+                return;
+            }
+            try {
+                const res = await fetch(`${API_URL}?action=getProducts`);
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const result = await res.json();
+                products = Array.isArray(result) ? result : [];
+                renderProducts();
+            } catch (err) {
+                console.error(err);
+                document.getElementById('product-list').innerHTML =
+                    '<p class="text-xs text-red-500 col-span-2 text-center py-6">Gagal memuat produk: ' + err.message + '</p>';
+            }
+        }
+
+        function renderProducts() {
+            const container = document.getElementById('product-list');
+            if (!products.length) {
+                container.innerHTML = '<p class="text-xs text-gray-400 col-span-2 text-center py-6">Belum ada produk.</p>';
+                return;
+            }
+            container.innerHTML = products.map(p => {
+                const qty = cart[p.id] || 0;
+                const actionHtml = qty === 0
+                    ? `<button onclick="addToCart('${p.id}')" class="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium text-xs py-2 rounded-lg transition">+ Tambah</button>`
+                    : `<div class="flex-1 flex items-center justify-between bg-emerald-600 text-white rounded-lg px-2 py-1">
+                         <button onclick="decreaseCart('${p.id}')" class="w-6 h-6 flex items-center justify-center font-bold text-sm hover:bg-emerald-700 rounded">-</button>
+                         <span class="text-xs font-bold">${qty}</span>
+                         <button onclick="addToCart('${p.id}')" class="w-6 h-6 flex items-center justify-center font-bold text-sm hover:bg-emerald-700 rounded">+</button>
+                       </div>`;
+                return `
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col justify-between">
+                    <img src="${p.img}" alt="${p.name}" class="w-full h-32 object-cover" onerror="this.src='https://via.placeholder.com/300x200?text=No+Image'">
+                    <div class="p-3 flex flex-col flex-grow justify-between">
+                        <div>
+                            <h3 class="font-semibold text-sm text-gray-800 line-clamp-1">${p.name}</h3>
+                            <p class="text-emerald-600 font-bold text-sm mt-1">Rp ${Number(p.price).toLocaleString('id-ID')}</p>
+                        </div>
+                        <div class="flex gap-1.5 mt-3">
+                            ${actionHtml}
+                            <button onclick="openShareModal('${p.id}')" class="bg-green-600 hover:bg-green-700 text-white px-2.5 py-2 rounded-lg text-xs transition" title="Bagikan Produk">📤</button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // --- KERANJANG ---
+        function addToCart(id) {
+            cart[id] = (cart[id] || 0) + 1;
+            updateCartUI();
+        }
+        function decreaseCart(id) {
+            if (cart[id]) { cart[id]--; if (cart[id] <= 0) delete cart[id]; }
+            updateCartUI();
+        }
+        function removeFromCart(id) { delete cart[id]; updateCartUI(); }
+        function clearCart() {
+            if (Object.keys(cart).length === 0) return;
+            cart = {};
+            updateCartUI();
+            closeCheckoutModal();
+        }
+
+        function calcTotal() {
+            let totalItems = 0, totalPrice = 0;
+            for (let id in cart) {
+                let p = products.find(prod => prod.id == id);
+                if (p) { totalItems += cart[id]; totalPrice += Number(p.price) * cart[id]; }
+            }
+            return { totalItems, totalPrice };
+        }
+
+        function updateCartUI() {
+            const { totalItems, totalPrice } = calcTotal();
+            renderProducts();
+
+            const bar = document.getElementById('cart-bar');
+            if (totalItems > 0) {
+                bar.classList.remove('hidden');
+                document.getElementById('cart-count').innerText = totalItems;
+                document.getElementById('cart-total').innerText = `Rp ${totalPrice.toLocaleString('id-ID')}`;
+            } else {
+                bar.classList.add('hidden');
+                closeCheckoutModal();
+            }
+            renderCheckoutCartList(totalPrice);
+        }
+
+        function renderCheckoutCartList(totalPrice) {
+            const listContainer = document.getElementById('checkout-cart-list');
+            const modalTotal = document.getElementById('modal-cart-total');
+            if (!listContainer) return;
+            let html = '';
+            for (let id in cart) {
+                let p = products.find(prod => prod.id == id);
+                if (!p) continue;
+                let sub = Number(p.price) * cart[id];
+                html += `
+                <div class="flex items-center justify-between bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                    <div class="flex-1 pr-2">
+                        <p class="text-xs font-semibold text-gray-800 line-clamp-1">${p.name}</p>
+                        <p class="text-[11px] text-emerald-600 font-bold">Rp ${sub.toLocaleString('id-ID')}</p>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button onclick="decreaseCart('${p.id}')" class="w-6 h-6 bg-white border rounded-md text-xs font-bold text-gray-600 hover:bg-gray-100">-</button>
+                        <span class="text-xs font-bold w-5 text-center">${cart[id]}</span>
+                        <button onclick="addToCart('${p.id}')" class="w-6 h-6 bg-white border rounded-md text-xs font-bold text-emerald-600 hover:bg-emerald-50">+</button>
+                        <button onclick="removeFromCart('${p.id}')" class="ml-1 text-red-500 hover:text-red-700 text-xs px-1.5 py-1 rounded bg-red-50" title="Hapus Item">🗑️</button>
+                    </div>
+                </div>`;
+            }
+            listContainer.innerHTML = html;
+            if (modalTotal) modalTotal.innerText = `Rp ${totalPrice.toLocaleString('id-ID')}`;
+        }
+
+        // --- SHARE PRODUK ---
+        async function loadImageAsDataURL(url) {
+            try {
+                const response = await fetch(url, { mode: 'cors' });
+                const blob = await response.blob();
+                return await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.readAsDataURL(blob);
+                });
+            } catch (e) { return url; }
+        }
+
+        async function openShareModal(productId) {
+            const p = products.find(prod => prod.id == productId);
+            if (!p) return;
+            currentShareProduct = p;
+            document.getElementById('share-name').innerText = p.name;
+            document.getElementById('share-price').innerText = `Rp ${Number(p.price).toLocaleString('id-ID')}`;
+            const imgEl = document.getElementById('share-img');
+            imgEl.src = await loadImageAsDataURL(p.img);
+            document.getElementById('share-modal').classList.remove('hidden');
+        }
+
+        function closeShareModal() {
+            document.getElementById('share-modal').classList.add('hidden');
+            currentShareProduct = null;
+        }
+
+        async function generateProductCardBlob() {
+            const cardElement = document.getElementById('product-share-card');
+            const canvas = await html2canvas(cardElement, {
+                scale: 2, useCORS: true, allowTaint: true, backgroundColor: "#ffffff"
+            });
+            return await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        }
+
+        async function executeShareProduct() {
+            if (!currentShareProduct) return;
+            const btn = document.getElementById('btn-execute-share');
+            const oriText = btn.innerHTML;
+            btn.innerHTML = '<span>Memproses gambar...</span>';
+            btn.disabled = true;
+            try {
+                const p = currentShareProduct;
+                const blob = await generateProductCardBlob();
+                const fileName = `${p.name.replace(/[^a-zA-Z0-9]/g, '-')}.png`;
+                const file = new File([blob], fileName, { type: 'image/png' });
+                const shareText = `Yuk cek produk *${p.name}* seharga Rp ${Number(p.price).toLocaleString('id-ID')} di *TOKO KITA*!`;
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({ title: p.name, text: shareText, files: [file] });
+                    closeShareModal();
+                    return;
+                }
+                const link = document.createElement('a');
+                link.download = fileName;
+                link.href = URL.createObjectURL(blob);
+                link.click();
+                window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, '_blank');
+                closeShareModal();
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    console.error("Error sharing:", err);
+                    alert("Gambar berhasil disiapkan. Silakan lampirkan gambar yang terunduh ke WhatsApp.");
+                }
+            } finally {
+                btn.innerHTML = oriText;
+                btn.disabled = false;
+            }
+        }
+
+        async function downloadShareProductOnly() {
+            if (!currentShareProduct) return;
+            const blob = await generateProductCardBlob();
+            const link = document.createElement('a');
+            link.download = `${currentShareProduct.name.replace(/[^a-zA-Z0-9]/g, '-')}.png`;
+            link.href = URL.createObjectURL(blob);
+            link.click();
+        }
+
+        // --- MODAL & CHECKOUT ---
+        function openCheckoutModal() {
+            const { totalPrice } = calcTotal();
+            renderCheckoutCartList(totalPrice);
+            document.getElementById('checkout-modal').classList.remove('hidden');
+        }
+        function closeCheckoutModal() { document.getElementById('checkout-modal').classList.add('hidden'); }
+        function openVendorModal() { document.getElementById('vendor-modal').classList.remove('hidden'); }
+        function closeVendorModal() { document.getElementById('vendor-modal').classList.add('hidden'); }
+
+        async function processCheckout() {
+            const name = document.getElementById('buyer-name').value.trim();
+            const phone = document.getElementById('buyer-phone').value.trim();
+            const address = document.getElementById('buyer-address').value.trim();
+            if (!API_URL || API_URL.includes("ISI_URL")) { alert("URL API belum diatur."); return; }
+            if (!OWNER_WA || OWNER_WA.includes("ISI_NOMOR")) { alert("Nomor WA owner belum diatur."); return; }
+            if (!name || !phone || !address) { alert('Mohon isi semua data pemesan.'); return; }
+            if (Object.keys(cart).length === 0) { alert('Keranjang belanja masih kosong.'); return; }
+
+            const btn = document.getElementById('btn-checkout');
+            const oriText = btn.innerText;
+            btn.disabled = true; btn.innerText = "Memproses...";
+
+            try {
+                let itemsArr = [], totalPrice = 0, receiptHtml = '', textItems = '';
+                for (let id in cart) {
+                    let p = products.find(prod => prod.id == id);
+                    if (!p) continue;
+                    let sub = Number(p.price) * cart[id];
+                    totalPrice += sub;
+                    itemsArr.push({ id: p.id, name: p.name, price: p.price, qty: cart[id] });
+                    receiptHtml += `<div class="flex justify-between"><span>${cart[id]}x ${p.name}</span><span>Rp ${sub.toLocaleString('id-ID')}</span></div>`;
+                    textItems += `- ${cart[id]}x ${p.name} (Rp ${sub.toLocaleString('id-ID')})\n`;
+                }
+
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ type: "save_order", name, phone, address, items: itemsArr, total: totalPrice })
+                });
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const result = await res.json();
+                if (result.status !== "success") throw new Error(result.error || "Gagal menyimpan pesanan.");
+
+                document.getElementById('r-name').innerText = name;
+                document.getElementById('r-address').innerText = address;
+                document.getElementById('receipt-items').innerHTML = receiptHtml;
+                document.getElementById('r-total').innerText = `Rp ${totalPrice.toLocaleString('id-ID')}`;
+
+                const receipt = document.getElementById('receipt-area');
+                receipt.classList.remove('hidden');
+                const canvas = await html2canvas(receipt, { scale: 2 });
+                receipt.classList.add('hidden');
+
+                canvas.toBlob((blob) => {
+                    const link = document.createElement('a');
+                    link.download = `Nota-${result.orderId}.png`;
+                    link.href = URL.createObjectURL(blob);
+                    link.click();
+
+                    const adminUrl = `${getBaseUrl()}/admin.html?type=order&id=${result.orderId}`;
+                    const textWa = `Halo TOKO KITA, saya mau pesan:\n\n${textItems}\n*Total: Rp ${totalPrice.toLocaleString('id-ID')}*\n\n*Nama:* ${name}\n*Alamat:* ${address}\n\nLink Konfirmasi Admin:\n${adminUrl}`;
+                    window.location.href = `https://wa.me/${OWNER_WA}?text=${encodeURIComponent(textWa)}`;
+                });
+            } catch (err) {
+                console.error(err);
+                alert("Gagal memproses pesanan: " + err.message);
+            } finally {
+                btn.disabled = false; btn.innerText = oriText;
+            }
+        }
+
+        async function submitVendorRegistration() {
+            const name = document.getElementById('v-name').value.trim();
+            const phone = document.getElementById('v-phone').value.trim();
+            if (!API_URL || API_URL.includes("ISI_URL")) { alert("URL API belum diatur."); return; }
+            if (!OWNER_WA || OWNER_WA.includes("ISI_NOMOR")) { alert("Nomor WA owner belum diatur."); return; }
+            if (!name || !phone) { alert('Mohon isi semua data.'); return; }
+
+            const btn = document.getElementById('btn-vendor');
+            const oriText = btn.innerText;
+            btn.disabled = true; btn.innerText = "Memproses...";
+
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ type: "register_vendor", name, phone })
+                });
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const result = await res.json();
+                if (result.status !== "success") throw new Error(result.error || "Gagal mendaftar.");
+
+                document.getElementById('vr-name').innerText = name;
+                const receipt = document.getElementById('vendor-receipt-area');
+                receipt.classList.remove('hidden');
+                const canvas = await html2canvas(receipt, { scale: 2 });
+                receipt.classList.add('hidden');
+
+                canvas.toBlob((blob) => {
+                    const link = document.createElement('a');
+                    link.download = `Pendaftaran-${result.token}.png`;
+                    link.href = URL.createObjectURL(blob);
+                    link.click();
+
+                    const adminUrl = `${getBaseUrl()}/admin.html?type=vendor&id=${result.token}`;
+                    const textWa = `Halo TOKO KITA, saya ingin mendaftar sebagai kontributor.\n*Nama:* ${name}\n*No WA:* ${phone}\n\nLink Admin:\n${adminUrl}`;
+                    window.location.href = `https://wa.me/${OWNER_WA}?text=${encodeURIComponent(textWa)}`;
+                });
+            } catch (err) {
+                console.error(err);
+                alert("Gagal mendaftar: " + err.message);
+            } finally {
+                btn.disabled = false; btn.innerText = oriText;
+            }
+        }
+
+        fetchProducts();
+    </script>
+</body>
+</html>
