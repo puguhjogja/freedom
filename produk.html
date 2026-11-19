@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tambah Produk - TOKO KITA</title>
+    <script src="config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-lg p-6">
+
+        <!-- Loading state -->
+        <div id="loading" class="text-center py-8 text-gray-500 animate-pulse">
+            Memeriksa akses token...
+        </div>
+
+        <!-- Error state -->
+        <div id="error" class="text-center py-8 hidden">
+            <div class="text-red-500 text-4xl mb-2">❌</div>
+            <h2 class="font-bold text-lg text-gray-800">Akses Ditolak / Kedaluwarsa</h2>
+            <p class="text-xs text-gray-500 mt-1">Token tidak valid atau masa berlaku Anda telah habis.</p>
+            <p class="text-xs text-gray-400 mt-3">Hubungi owner TOKO KITA untuk memperpanjang akses.</p>
+        </div>
+
+        <!-- Form content -->
+        <div id="form-content" class="hidden">
+            <h1 class="font-bold text-lg text-gray-800 mb-1">Tambah Produk TOKO KITA</h1>
+            <p class="text-xs text-emerald-600 font-medium mb-1">
+                Kontributor: <span id="c-name" class="font-bold">-</span>
+            </p>
+            <p class="text-[11px] text-gray-400 mb-4">
+                Masa aktif token s/d: <span id="c-expired" class="font-medium">-</span>
+            </p>
+
+            <form onsubmit="saveProduct(event)" class="space-y-3" novalidate>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Nama Produk</label>
+                    <input type="text" id="p-name" required maxlength="100"
+                        placeholder="Contoh: Kopi Susu Gula Aren"
+                        class="w-full border rounded-lg p-2.5 text-sm outline-none focus:border-emerald-500">
+                    <p id="err-name" class="text-[11px] text-red-500 mt-1 hidden"></p>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Harga (Rp)</label>
+                    <input type="number" id="p-price" required min="1000" step="100"
+                        placeholder="Contoh: 18000"
+                        class="w-full border rounded-lg p-2.5 text-sm outline-none focus:border-emerald-500">
+                    <p class="text-[11px] text-gray-400 mt-1">Minimal Rp 1.000, tanpa titik/koma.</p>
+                    <p id="err-price" class="text-[11px] text-red-500 mt-1 hidden"></p>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">URL Gambar Produk</label>
+                    <input type="url" id="p-img" required placeholder="https://..."
+                        class="w-full border rounded-lg p-2.5 text-sm outline-none focus:border-emerald-500">
+                    <p id="err-img" class="text-[11px] text-red-500 mt-1 hidden"></p>
+
+                    <!-- Preview gambar -->
+                    <div id="img-preview-wrap" class="mt-2 hidden">
+                        <p class="text-[11px] text-gray-500 mb-1">Preview:</p>
+                        <div class="w-full h-40 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center border">
+                            <img id="img-preview" src="" alt="Preview"
+                                class="w-full h-full object-cover"
+                                onerror="showImgError()"
+                                onload="hideImgError()">
+                        </div>
+                        <p id="img-preview-error" class="text-[11px] text-red-500 mt-1 hidden">
+                            ⚠️ Gambar tidak bisa dimuat. Periksa URL atau pastikan gambar dapat diakses publik.
+                        </p>
+                    </div>
+                </div>
+
+                <button type="submit" id="btn-save"
+                    class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-medium py-3 rounded-xl text-sm shadow transition">
+                    Simpan Produk ke TOKO KITA
+                </button>
+
+                <button type="button" onclick="backToCatalog()"
+                    class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2.5 rounded-xl text-xs transition">
+                    ← Kembali ke Katalog
+                </button>
+            </form>
+        </div>
+
+        <!-- Success state -->
+        <div id="success" class="text-center py-8 hidden">
+            <div class="text-emerald-500 text-5xl mb-3">✅</div>
+            <h2 class="font-bold text-lg text-gray-800">Produk Berhasil Ditambahkan!</h2>
+            <p class="text-xs text-gray-500 mt-1">Produk Anda sudah tampil di katalog TOKO KITA.</p>
+            <div class="space-y-2 mt-5">
+                <button onclick="resetForm()"
+                    class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 rounded-xl text-sm shadow transition">
+                    + Tambah Produk Lagi
+                </button>
+                <button onclick="backToCatalog()"
+                    class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2.5 rounded-xl text-xs transition">
+                    Lihat Katalog
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.TOKO_CONFIG?.API_URL || "";
+        const token = new URLSearchParams(window.location.search).get('token');
+        let contributorName = "";
+        let contributorExpired = "";
+        let isSaving = false;
+
+        function getBaseUrl() {
+            const path = window.location.pathname.replace(/\/[^/]*$/, '');
+            return window.location.origin + path;
+        }
+
+        function backToCatalog() {
+            window.location.href = `${getBaseUrl()}/index.html`;
+        }
+
+        function resetForm() {
+            document.getElementById('success').classList.add('hidden');
+            document.getElementById('form-content').classList.remove('hidden');
+            document.querySelector('#form-content form').reset();
+            clearErrors();
+            document.getElementById('img-preview-wrap').classList.add('hidden');
+        }
+
+        function showError() {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('form-content').classList.add('hidden');
+            document.getElementById('success').classList.add('hidden');
+            document.getElementById('error').classList.remove('hidden');
+        }
+
+        function clearErrors() {
+            ['err-name', 'err-price', 'err-img'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) { el.textContent = ''; el.classList.add('hidden'); }
+            });
+        }
+
+        function showFieldError(fieldId, msg) {
+            const el = document.getElementById('err-' + fieldId);
+            if (el) { el.textContent = msg; el.classList.remove('hidden'); }
+        }
+
+        function showImgError() {
+            document.getElementById('img-preview-error').classList.remove('hidden');
+        }
+
+        function hideImgError() {
+            document.getElementById('img-preview-error').classList.add('hidden');
+        }
+
+        // === TOKEN CHECK ===
+        async function checkToken() {
+            if (!API_URL || API_URL.includes("ISI_URL")) {
+                document.getElementById('loading').innerText = "URL API belum diatur di config.js.";
+                return;
+            }
+            if (!token) { showError(); return; }
+
+            try {
+                const res = await fetch(`${API_URL}?action=checkToken&token=${encodeURIComponent(token)}`);
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const result = await res.json();
+
+                if (result.valid) {
+                    contributorName = result.name || "Kontributor";
+                    contributorExpired = result.expired || "";
+                    document.getElementById('c-name').innerText = contributorName;
+                    document.getElementById('c-expired').innerText = contributorExpired || "Tidak diketahui";
+                    document.getElementById('loading').classList.add('hidden');
+                    document.getElementById('form-content').classList.remove('hidden');
+                } else {
+                    showError();
+                }
+            } catch (err) {
+                console.error(err);
+                showError();
+            }
+        }
+
+        // === PREVIEW GAMBAR ===
+        function setupImagePreview() {
+            const input = document.getElementById('p-img');
+            const wrap = document.getElementById('img-preview-wrap');
+            const preview = document.getElementById('img-preview');
+            let debounceTimer = null;
+
+            input.addEventListener('input', () => {
+                clearTimeout(debounceTimer);
+                const url = input.value.trim();
+                if (!url) { wrap.classList.add('hidden'); return; }
+                debounceTimer = setTimeout(() => {
+                    try {
+                        // Validasi awal via URL constructor
+                        new URL(url);
+                        preview.src = url;
+                        wrap.classList.remove('hidden');
+                    } catch {
+                        wrap.classList.add('hidden');
+                    }
+                }, 500);
+            });
+        }
+
+        // === VALIDASI FORM ===
+        function validateForm() {
+            clearErrors();
+            let valid = true;
+
+            const name = document.getElementById('p-name').value.trim();
+            const price = document.getElementById('p-price').value.trim();
+            const img = document.getElementById('p-img').value.trim();
+
+            if (!name) { showFieldError('name', 'Nama produk wajib diisi.'); valid = false; }
+            else if (name.length < 3) { showFieldError('name', 'Nama produk minimal 3 karakter.'); valid = false; }
+            else if (name.length > 100) { showFieldError('name', 'Nama produk maksimal 100 karakter.'); valid = false; }
+
+            const priceNum = Number(price);
+            if (!price) { showFieldError('price', 'Harga wajib diisi.'); valid = false; }
+            else if (isNaN(priceNum)) { showFieldError('price', 'Harga harus berupa angka.'); valid = false; }
+            else if (priceNum < 1000) { showFieldError('price', 'Harga minimal Rp 1.000.'); valid = false; }
+            else if (!Number.isFinite(priceNum)) { showFieldError('price', 'Harga tidak valid.'); valid = false; }
+
+            if (!img) { showFieldError('img', 'URL gambar wajib diisi.'); valid = false; }
+            else {
+                try {
+                    const u = new URL(img);
+                    if (!/^https?:$/.test(u.protocol)) {
+                        showFieldError('img', 'URL harus diawali http:// atau https://');
+                        valid = false;
+                    }
+                } catch {
+                    showFieldError('img', 'Format URL tidak valid.');
+                    valid = false;
+                }
+            }
+
+            return valid;
+        }
+
+        // === SIMPAN PRODUK ===
+        async function saveProduct(e) {
+            e.preventDefault();
+            if (isSaving) return;
+            if (!validateForm()) return;
+
+            const btn = document.getElementById('btn-save');
+            const oriText = btn.innerText;
+            isSaving = true;
+            btn.innerText = "Menyimpan...";
+            btn.disabled = true;
+
+            const payload = {
+                type: "add_product",
+                name: document.getElementById('p-name').value.trim(),
+                price: Number(document.getElementById('p-price').value),
+                img: document.getElementById('p-img').value.trim(),
+                addedBy: contributorName,
+                token: token
+            };
+
+            try {
+                const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const result = await res.json();
+
+                if (result.status === "success") {
+                    document.getElementById('form-content').classList.add('hidden');
+                    document.getElementById('success').classList.remove('hidden');
+                } else {
+                    const msg = result.error || "Gagal menyimpan produk.";
+                    // Jika token invalid/expired, tampilkan error state
+                    if (/token|expired|aktif/i.test(msg)) {
+                        showError();
+                    } else {
+                        alert(msg);
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Gagal terhubung ke server: " + err.message + "\n\nPeriksa koneksi internet dan URL Web App di config.js.");
+            } finally {
+                isSaving = false;
+                btn.innerText = oriText;
+                btn.disabled = false;
+            }
+        }
+
+        // === INIT ===
+        checkToken();
+        setupImagePreview();
+    </script>
+</body>
+</html>
