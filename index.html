@@ -1,376 +1,163 @@
-// ==UserScript==
-// @name         FREEDOM-INSIDE - Maps Lead Extractor & WA Blaster
-// @namespace    http://tampermonkey.net/
-// @version      1.2
-// @description  Ekstrak leads Google Maps & WA Blaster otomatis untuk FREEDOM-INSIDE
-// @author       Puguh
-// @match        https://www.google.com/maps/*
-// @grant        none
-// @run-at       document-idle
-// ==/UserScript==
+<script>
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwVN16r0PUQHrZl1PyD34yASIpzlsszLzXIDn4T7mQbbFjAqni1uqhN4uttng_4wSgi5A/exec";
+    const ADMIN_PHONE = "6289653135369";
 
-(function () {
-    'use strict';
-
-    /* =========================================================
-       KONFIGURASI
-       ========================================================= */
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzMr60gyUyRa7d31dnpIM0MrGLcTk7SxFP-b0oj4M0e2p1rqu_ICH0oU-Yj9_DDwRN7bA/exec";
-
-    const CONFIG = {
-        PANEL_ID: 'freedom-floating-panel',
-        MAX_SCROLLS: 15,
-        SCROLL_DELAY: 1800,
-        STAGNANT_LIMIT: 2,
-        BLAST_DELAY: 6000,
-        MAX_BLAST_PER_SESSION: 50,
-        STORAGE_EMAIL_KEY: 'user_email',
-        DEFAULT_EMAIL: 'tamu@freedom.com',
-    };
-
-    /* =========================================================
-       STATE
-       ========================================================= */
-    let extractedData = [];
-    let isExtracting = false;
-    let blastTimer = null;
-    let blastIndex = 0;
-    let blastMessage = '';
-    let observer = null;
-
-    /* =========================================================
-       UTILITAS
-       ========================================================= */
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-    const setStatus = (txt) => {
-        const el = document.getElementById('freedom-status');
-        if (el) el.textContent = 'Status: ' + txt;
-    };
-
-    const normalizePhone = (raw) => {
-        if (!raw) return '';
-        let p = String(raw).replace(/[^\d+]/g, '');
-        if (p.startsWith('+62')) p = p.substring(1);
-        if (p.startsWith('62')) return p;
-        if (p.startsWith('0')) return '62' + p.substring(1);
-        if (p.startsWith('8')) return '62' + p;
-        return p;
-    };
-
-    const isValidPhone = (p) => /^62\d{8,13}$/.test(p);
-
-    const escapeHTML = (s) =>
-        String(s).replace(/[&<>"']/g, (c) => ({
-            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-        }[c]));
-
-    /* =========================================================
-       UI PANEL
-       ========================================================= */
-    function createFloatingButton() {
-        if (document.getElementById(CONFIG.PANEL_ID)) return;
-
-        const panel = document.createElement('div');
-        panel.id = CONFIG.PANEL_ID;
-        panel.innerHTML = `
-            <div style="position: fixed; bottom: 20px; right: 20px; z-index: 999999;
-                        background: #1e1e1e; color: #fff; padding: 15px; border-radius: 12px;
-                        box-shadow: 0 4px 20px rgba(0,0,0,0.5); font-family: system-ui, sans-serif;
-                        width: 280px; border: 2px solid #25D366;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                    <div style="font-weight: bold; color: #25D366; font-size: 14px;">⚡ FREEDOM-INSIDE</div>
-                    <button id="freedom-close" title="Tutup"
-                        style="background:transparent; color:#888; border:none; cursor:pointer;
-                               font-size:16px; line-height:1;">×</button>
-                </div>
-                <div id="freedom-status" style="font-size: 11px; margin-bottom: 10px; color: #aaa;">
-                    Status: Siap Ekstrak
-                </div>
-                <div id="freedom-count" style="font-size: 11px; margin-bottom: 10px; color:#25D366; font-weight:bold;">
-                    Leads: 0
-                </div>
-                <button id="btn-extract" style="background: #25D366; color: white; border: none;
-                        padding: 8px 12px; border-radius: 6px; width: 100%; font-weight: bold;
-                        cursor: pointer; font-size: 12px; margin-bottom: 6px;">📥 Mulai Ekstrak Data</button>
-                <button id="btn-blast" style="background: #007bff; color: white; border: none;
-                        padding: 8px 12px; border-radius: 6px; width: 100%; font-weight: bold;
-                        cursor: pointer; font-size: 12px; display: none;">🚀 Buka WA Blaster Panel</button>
-                <button id="btn-stop" style="background: #dc3545; color: white; border: none;
-                        padding: 8px 12px; border-radius: 6px; width: 100%; font-weight: bold;
-                        cursor: pointer; font-size: 12px; display: none; margin-top:6px;">⏹ Stop Blaster</button>
-            </div>
-        `;
-        document.body.appendChild(panel);
-
-        document.getElementById('freedom-close').addEventListener('click', () => panel.remove());
-        document.getElementById('btn-extract').addEventListener('click', startExtraction);
-        document.getElementById('btn-blast').addEventListener('click', openBlastModal);
-        document.getElementById('btn-stop').addEventListener('click', stopBlaster);
+    function toggleTheme() {
+        const current = document.documentElement.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
     }
 
-    const updateCount = () => {
-        const el = document.getElementById('freedom-count');
-        if (el) el.textContent = `Leads: ${extractedData.length}`;
-    };
-
-    /* =========================================================
-       EKSTRAKSI
-       ========================================================= */
-    function findFeed() {
-        return (
-            document.querySelector('div[role="feed"]') ||
-            document.querySelector('div[role="main"] div[role="feed"]')
-        );
+    function jsonFetch(payload) {
+        return fetch(WEB_APP_URL, {
+            method: 'POST',
+            // Apps Script butuh text/plain agar tidak kena preflight CORS
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+        }).then(r => r.json());
     }
 
-    async function autoScrollFeed(feed) {
-        let lastHeight = 0;
-        let stagnant = 0;
-
-        for (let i = 0; i < CONFIG.MAX_SCROLLS; i++) {
-            feed.scrollTo(0, feed.scrollHeight);
-            await sleep(CONFIG.SCROLL_DELAY);
-
-            const newHeight = feed.scrollHeight;
-            const endMarker = feed.querySelector('span.HlvSq');
-
-            if (newHeight === lastHeight) {
-                stagnant++;
-                if (stagnant >= CONFIG.STAGNANT_LIMIT) break;
-            } else {
-                stagnant = 0;
-            }
-            lastHeight = newHeight;
-
-            setStatus(`Menggulir... (${i + 1}/${CONFIG.MAX_SCROLLS})`);
-            if (endMarker) break;
-        }
-    }
-
-    function extractFromCard(card) {
-        const nameEl = card.querySelector(
-            '.fontHeadlineSmall, h3.fontHeadlineSmall, [role="heading"]'
-        );
-        const name = nameEl ? nameEl.textContent.trim() : '';
-
-        let phone = '';
-
-        // 1) Via aria-label
-        const phoneLabelEl = card.querySelector(
-            '[aria-label*="Telepon"], [aria-label*="Phone"], a[data-item-id^="phone"]'
-        );
-        if (phoneLabelEl) {
-            const label = phoneLabelEl.getAttribute('aria-label') || phoneLabelEl.textContent || '';
-            const m = label.match(/(\+?62|0)[0-9\-\s]{7,15}/);
-            if (m) phone = normalizePhone(m[0]);
+    function handleLogin() {
+        const emailInput = document.getElementById('user-email').value.trim();
+        if (!emailInput || !emailInput.includes('@')) {
+            alert('Masukkan alamat email yang valid!');
+            return;
         }
 
-        // 2) Fallback: regex di seluruh teks
-        if (!phone) {
-            const txt = card.textContent || '';
-            const matches = txt.match(/(\+?62|0)[0-9\-\s]{7,15}/g);
-            if (matches) {
-                for (const m of matches) {
-                    const p = normalizePhone(m);
-                    if (isValidPhone(p)) { phone = p; break; }
+        const btn = document.querySelector('#login-section button');
+        btn.innerText = 'Memeriksa...';
+        btn.disabled = true;
+        document.getElementById('expired-box').style.display = 'none';
+
+        jsonFetch({ action: "registerOrLogin", email: emailInput })
+            .then(data => {
+                btn.innerText = 'Masuk / Cek Akun';
+                btn.disabled = false;
+
+                if (data.status === "expired") {
+                    document.getElementById('expired-msg').innerHTML =
+                        '⚠️ <b>MASA AKTIF HABIS!</b><br>' + data.message;
+                    document.getElementById('expired-box').style.display = 'block';
+                } else if (data.status === "success") {
+                    localStorage.setItem('user_email', emailInput);
+                    showDashboard(emailInput, data.expiry, data.quota);
+                } else {
+                    alert('Gagal: ' + (data.message || 'Unknown error'));
                 }
-            }
-        }
-
-        return { name, phone };
-    }
-
-    async function startExtraction() {
-        if (isExtracting) return;
-
-        const btnExtract = document.getElementById('btn-extract');
-        const btnBlast = document.getElementById('btn-blast');
-
-        const feed = findFeed();
-        if (!feed) {
-            alert("Harap lakukan pencarian di Google Maps terlebih dahulu\n" +
-                  "(contoh: 'Cafe di Yogyakarta') hingga daftar tempat muncul di sebelah kiri!");
-            setStatus('Gagal (buka daftar tempat dulu)');
-            return;
-        }
-
-        isExtracting = true;
-        extractedData = [];
-        updateCount();
-        btnExtract.disabled = true;
-        btnExtract.textContent = '⏳ Sedang Ekstrak...';
-        setStatus('Menggulir & menyedot data...');
-
-        try {
-            await autoScrollFeed(feed);
-
-            const cards = feed.querySelectorAll(
-                'div.Nv2PK, div[jsaction][data-cid], div[role="article"]'
-            );
-
-            cards.forEach((card) => {
-                const { name, phone } = extractFromCard(card);
-                if (!name || !phone) return;
-                if (!isValidPhone(phone)) return;
-                if (extractedData.some((d) => d.phone === phone)) return;
-                extractedData.push({ name, phone });
+            })
+            .catch(err => {
+                btn.innerText = 'Masuk / Cek Akun';
+                btn.disabled = false;
+                alert('Tidak dapat terhubung ke server.\n' + err.message);
+                // JANGAN auto-login — ini celah keamanan
             });
-
-            updateCount();
-            setStatus(`Berhasil! ${extractedData.length} leads valid.`);
-
-            if (extractedData.length > 0) {
-                btnBlast.style.display = 'block';
-                await syncToCloud(extractedData);
-            } else {
-                alert('Nomor WhatsApp/Telepon tidak ditemukan.\n' +
-                      'Pastikan kartu tempat memuat info kontak (klik tiap tempat untuk memverifikasi).');
-            }
-        } catch (err) {
-            console.error('[FREEDOM] Ekstraksi gagal:', err);
-            setStatus('Error: ' + err.message);
-        } finally {
-            isExtracting = false;
-            btnExtract.disabled = false;
-            btnExtract.textContent = '📥 Mulai Ekstrak Data';
-        }
     }
 
-    /* =========================================================
-       SINKRONISASI CLOUD
-       ========================================================= */
-    async function syncToCloud(leads) {
-        const userEmail = localStorage.getItem(CONFIG.STORAGE_EMAIL_KEY) || CONFIG.DEFAULT_EMAIL;
-        try {
-            const res = await fetch(WEB_APP_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({
-                    action: 'saveLeads',
-                    email: userEmail,
-                    leads: leads,
-                }),
-                redirect: 'follow',
-            });
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            const data = await res.json().catch(() => ({}));
-            console.log('[FREEDOM] Cloud Sync OK:', data);
-            setStatus(`Tersimpan di cloud (${leads.length} leads).`);
-        } catch (err) {
-            console.error('[FREEDOM] Gagal sinkron cloud:', err);
-            setStatus('Gagal sinkron cloud (data tetap lokal).');
-        }
+    function showDashboard(email, expiry, quota) {
+        document.getElementById('login-section').classList.add('hidden');
+        document.getElementById('app-section').classList.remove('hidden');
+        document.getElementById('welcome-msg').innerText = `Halo, ${email}`;
+        document.getElementById('expiry-display').innerText = expiry;
+        document.getElementById('quota-display').innerText = quota;
+        loadHistoryToUI(email);
     }
 
-    /* =========================================================
-       WA BLASTER
-       ========================================================= */
-    function stopBlaster() {
-        if (blastTimer) {
-            clearTimeout(blastTimer);
-            blastTimer = null;
-        }
-        const btnStop = document.getElementById('btn-stop');
-        if (btnStop) btnStop.style.display = 'none';
-        setStatus('Blaster dihentikan.');
-    }
+    function loadHistoryToUI(email) {
+        const key = 'history_' + email;
+        const saved = JSON.parse(localStorage.getItem(key)) || [];
+        const container = document.getElementById('history-list');
 
-    function openBlastModal() {
-        if (!extractedData.length) {
-            alert('Tidak ada leads untuk diblast.');
+        if (saved.length === 0) {
+            container.innerHTML = '<div>• Belum ada aktivitas ekstraksi sesi ini.</div>';
             return;
         }
-        if (blastTimer) {
-            alert('Blaster masih berjalan. Klik "Stop Blaster" dulu.');
-            return;
-        }
-
-        const msg = prompt(
-            'Masukkan template pesan WhatsApp (gunakan {nama} untuk nama bisnis):',
-            'Halo Kak {nama}, salam kenal dari FREEDOM-INSIDE. Kami lihat bisnisnya sangat menarik...'
-        );
-        if (!msg || !msg.trim()) return;
-
-        const total = Math.min(extractedData.length, CONFIG.MAX_BLAST_PER_SESSION);
-        if (!confirm(
-            `Kirim pesan ke ${total} leads?\n` +
-            `- Jeda: ${CONFIG.BLAST_DELAY / 1000} detik\n` +
-            `- Batas sesi: ${CONFIG.MAX_BLAST_PER_SESSION} leads\n` +
-            `- Izinkan popup untuk situs ini!`
-        )) return;
-
-        blastMessage = msg;
-        blastIndex = 0;
-
-        const btnStop = document.getElementById('btn-stop');
-        btnStop.style.display = 'block';
-        setStatus(`Blaster aktif: 0/${total}`);
-
-        const sendNext = () => {
-            if (blastIndex >= total) {
-                setStatus('Blaster selesai!');
-                btnStop.style.display = 'none';
-                blastTimer = null;
-                alert('Semua antrean WhatsApp Blaster selesai!');
-                return;
-            }
-
-            const lead = extractedData[blastIndex++];
-            const text = blastMessage.replace(/\{nama\}/g, lead.name);
-            const waUrl = `https://api.whatsapp.com/send?phone=${lead.phone}&text=${encodeURIComponent(text)}`;
-
-            const win = window.open(waUrl, '_blank');
-            if (!win) {
-                alert('Popup diblokir!\nIzinkan popup untuk google.com lalu ulangi.');
-                stopBlaster();
-                return;
-            }
-
-            setStatus(`Blaster aktif: ${blastIndex}/${total} (${lead.name})`);
-            blastTimer = setTimeout(sendNext, CONFIG.BLAST_DELAY);
-        };
-
-        sendNext();
-    }
-
-    /* =========================================================
-       SPA HANDLING (Google Maps)
-       ========================================================= */
-    function mountWhenReady() {
-        let tries = 0;
-        const iv = setInterval(() => {
-            tries++;
-            if (document.body) createFloatingButton();
-            if (document.getElementById(CONFIG.PANEL_ID) || tries > 30) {
-                clearInterval(iv);
-            }
-        }, 1000);
-    }
-
-    function setupObserver() {
-        if (observer) observer.disconnect();
-        let lastUrl = location.href;
-        observer = new MutationObserver(() => {
-            if (location.href !== lastUrl) {
-                lastUrl = location.href;
-                setTimeout(() => {
-                    if (!document.getElementById(CONFIG.PANEL_ID)) createFloatingButton();
-                }, 1500);
-            }
-        });
-        observer.observe(document.body || document.documentElement, {
-            subtree: true,
-            childList: true,
+        container.innerHTML = '';
+        saved.slice(-20).reverse().forEach(item => {
+            const div = document.createElement('div');
+            div.style.marginBottom = '4px';
+            div.innerHTML = `• [${item.time}] Berhasil ekstrak <b>${item.count} kontak</b>`;
+            container.appendChild(div);
         });
     }
 
-    /* =========================================================
-       BOOT
-       ========================================================= */
-    window.addEventListener('load', () => {
-        setTimeout(mountWhenReady, 2000);
-        setupObserver();
+    function addHistory(email, count) {
+        const key = 'history_' + email;
+        const saved = JSON.parse(localStorage.getItem(key)) || [];
+        saved.push({ time: new Date().toLocaleString('id-ID'), count: count });
+        localStorage.setItem(key, JSON.stringify(saved.slice(-20)));
+    }
+
+    function contactAdmin() {
+        const emailInput = document.getElementById('user-email').value.trim();
+        const text = `Halo Admin, akun aplikasi Lead Maps saya kedaluwarsa.\nEmail: *${emailInput}*\nMohon bantuannya perpanjang masa aktif.`;
+        window.open(`https://api.whatsapp.com/send?phone=${ADMIN_PHONE}&text=${encodeURIComponent(text)}`, '_blank');
+    }
+
+    function openGoogleMaps() {
+        // Contoh: buka Google Maps & simulasi ekstraksi
+        window.open('https://www.google.com/maps', '_blank');
+
+        // Placeholder demo — ganti dengan logika scraping nyata Anda
+        const demoLeads = [
+            { name: "Toko Contoh A", phone: "628111111111" },
+            { name: "Toko Contoh B", phone: "628222222222" }
+        ];
+        const email = localStorage.getItem('user_email');
+        if (!email) return;
+
+        jsonFetch({ action: "saveLeads", email: email, leads: demoLeads })
+            .then(res => {
+                if (res.status === 'success') {
+                    addHistory(email, res.total);
+                    alert(`Berhasil menyimpan ${res.total} lead.`);
+                    // refresh kuota
+                    jsonFetch({ action: "registerOrLogin", email: email })
+                        .then(d => {
+                            if (d.status === 'success') {
+                                document.getElementById('quota-display').innerText = d.quota;
+                                loadHistoryToUI(email);
+                            }
+                        });
+                } else {
+                    alert('Gagal simpan: ' + res.message);
+                }
+            })
+            .catch(err => alert('Error: ' + err.message));
+    }
+
+    function logout() {
+        localStorage.removeItem('user_email');
+        location.reload();
+    }
+
+    // Init
+    window.addEventListener('DOMContentLoaded', () => {
+        document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'light');
+
+        const savedEmail = localStorage.getItem('user_email');
+        if (savedEmail) {
+            document.getElementById('user-email').value = savedEmail;
+            // Panggil login tanpa event object
+            const btn = document.querySelector('#login-section button');
+            btn.innerText = 'Memeriksa...';
+            btn.disabled = true;
+            jsonFetch({ action: "registerOrLogin", email: savedEmail })
+                .then(data => {
+                    btn.innerText = 'Masuk / Cek Akun';
+                    btn.disabled = false;
+                    if (data.status === 'success') {
+                        showDashboard(savedEmail, data.expiry, data.quota);
+                    } else if (data.status === 'expired') {
+                        document.getElementById('expired-msg').innerHTML =
+                            '⚠️ <b>MASA AKTIF HABIS!</b><br>' + data.message;
+                        document.getElementById('expired-box').style.display = 'block';
+                    }
+                })
+                .catch(() => {
+                    btn.innerText = 'Masuk / Cek Akun';
+                    btn.disabled = false;
+                });
+        }
     });
-
-})();
+</script>
