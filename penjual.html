@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0f766e">
 <title>Portal Penjual — TOKO KITA</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#f3f7f6;color:#18312f;font-family:system-ui,Arial}button,input,textarea{font:inherit}.top{background:#123b38;color:#fff;padding:17px 5%;display:flex;justify-content:space-between;align-items:center}.top a{color:#dff5ed}.wrap{max-width:1000px;margin:25px auto;padding:0 16px}.card{background:#fff;border-radius:18px;padding:22px;margin:15px 0;box-shadow:0 6px 24px #123b380a}.login{max-width:420px;margin:9vh auto}.field{margin:12px 0}.field label{display:block;font-size:13px;font-weight:700;margin-bottom:6px}.field input,.field textarea{width:100%;padding:12px;border:1px solid #dce8e4;border-radius:10px}.btn{border:0;background:#0f766e;color:white;border-radius:10px;padding:11px 16px;font-weight:700;cursor:pointer}.btn:disabled{opacity:.6;cursor:not-allowed}.btn.alt{background:#e8f7f3;color:#0f766e}.btn.danger{background:#b94343}.muted{color:#71817e;font-size:13px}.app{display:none}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:560px}td,th{text-align:left;padding:11px;border-bottom:1px solid #e7efec;font-size:13px}.badge{padding:4px 8px;border-radius:20px;background:#fff3d6;color:#8a5b00;font-size:12px}.badge.ok{background:#e1f6ec;color:#087443}@media(max-width:650px){.grid{grid-template-columns:1fr}.top{padding:14px;gap:10px;flex-wrap:wrap}}
+*{box-sizing:border-box}body{margin:0;background:#f3f7f6;color:#18312f;font-family:system-ui,Arial}button,input,textarea{font:inherit}.top{background:#123b38;color:#fff;padding:17px 5%;display:flex;justify-content:space-between;align-items:center}.top a{color:#dff5ed}.wrap{max-width:1000px;margin:25px auto;padding:0 16px}.card{background:#fff;border-radius:18px;padding:22px;margin:15px 0;box-shadow:0 6px 24px #123b380a}.login{max-width:420px;margin:9vh auto}.field{margin:12px 0}.field label{display:block;font-size:13px;font-weight:700;margin-bottom:6px}.field input,.field textarea{width:100%;padding:12px;border:1px solid #dce8e4;border-radius:10px}.field input:focus,.field textarea:focus{outline:2px solid #0f766e22;border-color:#0f766e}.btn{border:0;background:#0f766e;color:white;border-radius:10px;padding:11px 16px;font-weight:700;cursor:pointer}.btn:disabled{opacity:.6;cursor:not-allowed}.btn.alt{background:#e8f7f3;color:#0f766e}.btn.danger{background:#b94343}.muted{color:#71817e;font-size:13px}.app{display:none}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:560px}td,th{text-align:left;padding:11px;border-bottom:1px solid #e7efec;font-size:13px;vertical-align:middle}.badge{padding:4px 8px;border-radius:20px;background:#fff3d6;color:#8a5b00;font-size:12px;display:inline-block}.badge.ok{background:#e1f6ec;color:#087443}.notice{padding:10px 14px;border-radius:10px;background:#e8f7f3;color:#0f5c55;font-size:13px;margin-top:12px;display:none}.notice.err{background:#fdeaea;color:#9b2c2c}@media(max-width:650px){.grid{grid-template-columns:1fr}.top{padding:14px;gap:10px;flex-wrap:wrap}}
 </style>
 </head>
 <body>
@@ -16,10 +16,15 @@
     <h2>Login Penjual</h2>
     <p class="muted">Gunakan nomor WhatsApp dan password saat mendaftar.</p>
     <form onsubmit="event.preventDefault();login()">
-      <div class="field"><label>Nomor WhatsApp</label><input id="phone" inputmode="tel" placeholder="format no wa 628xxxxxxxxxx" required></div>
+      <div class="field">
+        <label>Nomor WhatsApp</label>
+        <input id="phone" inputmode="tel" placeholder="contoh: 08123456789 atau 628123456789" required>
+        <small class="muted" id="phonePreview">Format terkirim: 62...</small>
+      </div>
       <div class="field"><label>Password</label><input id="password" type="password" required></div>
       <button type="submit" class="btn" id="loginBtn" style="width:100%">Masuk ke Portal</button>
     </form>
+    <div class="notice err" id="loginErr" role="alert"></div>
     <p class="muted">Belum punya akun? Daftar melalui halaman toko. Akun harus disetujui admin sebelum bisa digunakan.</p>
   </div>
 
@@ -31,21 +36,27 @@
           <p class="muted">Kode Toko: <b id="storeCode">-</b> · WhatsApp: <b id="sellerPhone">-</b></p>
           <p class="muted" id="expiry"></p>
         </div>
-        <button class="btn alt" onclick="logout()">Keluar</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn alt" id="refreshBtn" onclick="reload(true)">Muat Ulang</button>
+          <button type="button" class="btn alt" onclick="logout()">Keluar</button>
+        </div>
       </div>
+      <div class="notice" id="statusBox" role="status"></div>
     </div>
 
     <div class="card">
       <h3>＋ Tambah Produk</h3>
-      <div class="grid">
-        <div class="field"><label>Nama produk *</label><input id="name"></div>
-        <div class="field"><label>Harga (angka rupiah) *</label><input id="price" type="number" min="1"></div>
-        <div class="field"><label>Kategori *</label><input id="category"></div>
-        <div class="field"><label>URL foto produk</label><input id="image" type="url" placeholder="https://..."></div>
-      </div>
-      <div class="field"><label>Deskripsi produk</label><textarea id="description" rows="3"></textarea></div>
-      <button class="btn" onclick="saveProduct()">Kirim Produk untuk Ditinjau</button>
-      <p class="muted">Produk baru berstatus Menunggu dan tampil di katalog setelah disetujui admin. Foto menggunakan URL gambar publik.</p>
+      <form id="productForm" onsubmit="event.preventDefault();saveProduct()">
+        <div class="grid">
+          <div class="field"><label>Nama produk *</label><input id="name" required></div>
+          <div class="field"><label>Harga (angka rupiah) *</label><input id="price" type="number" min="1" step="1" required></div>
+          <div class="field"><label>Kategori *</label><input id="category" required></div>
+          <div class="field"><label>URL foto produk</label><input id="image" type="url" placeholder="https://..."></div>
+        </div>
+        <div class="field"><label>Deskripsi produk</label><textarea id="description" rows="3"></textarea></div>
+        <button type="submit" class="btn" id="saveBtn">Kirim Produk untuk Ditinjau</button>
+        <p class="muted">Produk baru berstatus Menunggu dan tampil di katalog setelah disetujui admin. Foto menggunakan URL gambar publik.</p>
+      </form>
     </div>
 
     <div class="card">
@@ -72,34 +83,96 @@ function cleanPhone(phone) {
   return n;
 }
 
+function updatePhonePreview() {
+  const cleaned = cleanPhone(document.getElementById('phone').value);
+  document.getElementById('phonePreview').textContent = 'Format terkirim: ' + (cleaned || '-');
+}
+document.getElementById('phone').addEventListener('input', updatePhonePreview);
+
+function setLoginError(msg) {
+  const el = document.getElementById('loginErr');
+  if (!msg) {
+    el.style.display = 'none';
+    el.textContent = '';
+    return;
+  }
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function isValidImageUrl(url) {
+  if (!url) return true;
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' || u.protocol === 'http:';
+  } catch (_) {
+    return false;
+  }
+}
+
+function showNotice(msg, isError = false) {
+  const box = document.getElementById('statusBox');
+  if (!box) return;
+  box.textContent = msg;
+  box.className = isError ? 'notice err' : 'notice';
+  box.style.display = 'block';
+}
+
 function api(action, payload = {}) {
   return new Promise((resolve, reject) => {
     if (!API.startsWith('https://script.google.com')) return reject(Error('URL Apps Script belum dipasang.'));
-    let cb = 'selcb' + Date.now() + Math.floor(Math.random() * 1000),
-        s = document.createElement('script'),
-        t = setTimeout(() => { clean(); reject(Error('Server tidak merespons.')); }, 18000);
-    function clean() { delete window[cb]; s.remove(); clearTimeout(t); }
-    window[cb] = r => { clean(); r.ok ? resolve(r.data) : reject(Error(r.error || 'Gagal')); };
-    s.onerror = () => { clean(); reject(Error('Koneksi gagal. Periksa URL Apps Script dan deployment.')); };
-    s.src = API + '?action=' + encodeURIComponent(action) + '&data=' + encodeURIComponent(JSON.stringify({ ...payload, token })) + '&callback=' + cb;
+    let settled = false;
+    const cb = 'selcb_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+    const s = document.createElement('script');
+    const t = setTimeout(() => {
+      finish(() => reject(Error('Server tidak merespons.')));
+    }, 18000);
+
+    function finish(fn) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(t);
+      try { delete window[cb]; } catch (_) { window[cb] = undefined; }
+      s.remove();
+      fn();
+    }
+
+    window[cb] = r => {
+      finish(() => {
+        if (r && r.ok) resolve(r.data);
+        else reject(Error((r && r.error) || 'Gagal memproses permintaan.'));
+      });
+    };
+
+    s.onerror = () => finish(() => reject(Error('Koneksi gagal. Periksa URL Apps Script dan deployment.')));
+    const queryData = encodeURIComponent(JSON.stringify({ ...payload, token }));
+    s.src = API + '?action=' + encodeURIComponent(action) + '&data=' + queryData + '&callback=' + encodeURIComponent(cb);
     document.body.appendChild(s);
   });
 }
 
 async function login() {
   const btn = document.getElementById('loginBtn');
-  const phone = cleanPhone(document.getElementById('phone').value);
-  const password = document.getElementById('password').value.trim();
-  if (!phone || !password) return alert('Masukkan nomor WhatsApp dan password.');
+  const rawPhone = document.getElementById('phone').value.trim();
+  const phone = cleanPhone(rawPhone);
+  const password = document.getElementById('password').value;
+  setLoginError('');
+
+  if (!phone || phone.length < 9 || !password) {
+    setLoginError('Masukkan nomor WhatsApp yang valid dan password.');
+    return;
+  }
+
   btn.disabled = true;
   btn.textContent = 'Memeriksa akun...';
   try {
-    const d = await api('sellerLogin', { phone, password });
+    // Mengirim phone (ternormalisasi 62...) serta rawPhone agar kompatibel dengan berbagai logika Apps Script
+    const d = await api('sellerLogin', { phone, rawPhone, password });
     token = d.token;
     sessionStorage.setItem('tk_seller', token);
     await show();
   } catch (e) {
-    alert(e.message);
+    setLoginError(e.message + ' (Nomor dikirim: ' + phone + ')');
   } finally {
     btn.disabled = false;
     btn.textContent = 'Masuk ke Portal';
@@ -111,59 +184,101 @@ async function show() {
     const d = await api('sellerData');
     document.getElementById('login').style.display = 'none';
     document.getElementById('app').style.display = 'block';
-    document.getElementById('welcome').textContent = 'Halo, ' + d.seller.name;
-    document.getElementById('storeCode').textContent = d.seller.storeCode || '-';
-    document.getElementById('sellerPhone').textContent = d.seller.phone || '-';
-    document.getElementById('expiry').textContent = 'Masa aktif sampai: ' + (d.seller.expiry || 'Tidak dibatasi');
+    document.getElementById('welcome').textContent = 'Halo, ' + (d.seller?.name || 'Penjual');
+    document.getElementById('storeCode').textContent = d.seller?.storeCode || '-';
+    document.getElementById('sellerPhone').textContent = d.seller?.phone || '-';
+    document.getElementById('expiry').textContent = 'Masa aktif sampai: ' + (d.seller?.expiry || 'Tidak dibatasi');
     render(d.products || []);
   } catch (e) {
-    alert(e.message);
-    logout();
+    setLoginError(e.message);
+    logout(true);
   }
 }
 
 function render(list) {
-  document.getElementById('products').innerHTML = list.length
-    ? list.map(p => `<tr><td><b>${esc(p.name)}</b><br><span class="muted">${esc(p.category || '')}</span></td><td>${money(p.price)}</td><td><span class="badge ${p.status === 'Aktif' ? 'ok' : ''}">${esc(p.status)}</span></td><td><button class="btn danger" onclick="removeProduct('${esc(p.id)}')">Hapus</button></td></tr>`).join('')
-    : '<tr><td colspan="4">Anda belum menambahkan produk.</td></tr>';
-}
-
-async function reload() {
-  const d = await api('sellerData');
-  render(d.products || []);
-}
-
-async function saveProduct() {
-  const product = {
-    name: document.getElementById('name').value.trim(),
-    price: document.getElementById('price').value,
-    category: document.getElementById('category').value.trim(),
-    image: document.getElementById('image').value.trim(),
-    description: document.getElementById('description').value.trim()
-  };
-  try {
-    await api('sellerSaveProduct', { product });
-    ['name', 'price', 'category', 'image', 'description'].forEach(id => document.getElementById(id).value = '');
-    await reload();
-    alert('Produk dikirim. Menunggu persetujuan admin.');
-  } catch (e) {
-    alert(e.message);
+  const tbody = document.getElementById('products');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="4">Anda belum menambahkan produk.</td></tr>';
+    return;
   }
+  tbody.innerHTML = list.map(p => {
+    const isActive = p.status === 'Aktif';
+    return `<tr>
+      <td><b>${esc(p.name)}</b><br><span class="muted">${esc(p.category || '')}</span></td>
+      <td>${money(p.price)}</td>
+      <td><span class="badge ${isActive ? 'ok' : ''}">${esc(p.status || 'Menunggu')}</span></td>
+      <td><button type="button" class="btn danger del-btn" data-id="${esc(p.id)}" data-name="${esc(p.name)}">Hapus</button></td>
+    </tr>`;
+  }).join('');
 }
 
-async function removeProduct(id) {
-  if (!confirm('Hapus produk ini?')) return;
+document.getElementById('products').addEventListener('click', async e => {
+  const btn = e.target.closest('.del-btn');
+  if (!btn) return;
+  const id = btn.getAttribute('data-id');
+  const name = btn.getAttribute('data-name') || 'produk ini';
+  if (!id) return;
+  if (!confirm(`Hapus "${name}"?`)) return;
+  btn.disabled = true;
   try {
     await api('sellerDeleteProduct', { id });
     await reload();
-  } catch (e) {
-    alert(e.message);
+    showNotice('Produk berhasil dihapus.');
+  } catch (err) {
+    btn.disabled = false;
+    showNotice(err.message, true);
+    alert(err.message);
+  }
+});
+
+async function reload(showMsg = false) {
+  const refreshBtn = document.getElementById('refreshBtn');
+  if (refreshBtn) refreshBtn.disabled = true;
+  try {
+    const d = await api('sellerData');
+    render(d.products || []);
+    if (showMsg) showNotice('Daftar produk diperbarui.');
+  } finally {
+    if (refreshBtn) refreshBtn.disabled = false;
   }
 }
 
-function logout() {
+async function saveProduct() {
+  const saveBtn = document.getElementById('saveBtn');
+  const name = document.getElementById('name').value.trim();
+  const priceNum = Number(document.getElementById('price').value);
+  const category = document.getElementById('category').value.trim();
+  const image = document.getElementById('image').value.trim();
+  const description = document.getElementById('description').value.trim();
+
+  if (!name) return alert('Nama produk wajib diisi.');
+  if (!Number.isFinite(priceNum) || priceNum < 1) return alert('Harga harus berupa angka lebih dari 0.');
+  if (!category) return alert('Kategori wajib diisi.');
+  if (!isValidImageUrl(image)) return alert('URL foto produk harus diawali http:// atau https://.');
+
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Mengirim...';
+  try {
+    await api('sellerSaveProduct', {
+      product: { name, price: priceNum, category, image, description }
+    });
+    document.getElementById('productForm').reset();
+    await reload();
+    showNotice('Produk dikirim dan menunggu persetujuan admin.');
+    alert('Produk dikirim. Menunggu persetujuan admin.');
+  } catch (e) {
+    showNotice(e.message, true);
+    alert(e.message);
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Kirim Produk untuk Ditinjau';
+  }
+}
+
+function logout(keepError = false) {
   token = '';
   sessionStorage.removeItem('tk_seller');
+  if (!keepError) setLoginError('');
   document.getElementById('app').style.display = 'none';
   document.getElementById('login').style.display = 'block';
 }
@@ -171,8 +286,12 @@ function logout() {
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
-function money(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
 
+function money(n) {
+  return 'Rp' + Number(n || 0).toLocaleString('id-ID');
+}
+
+updatePhonePreview();
 if (token) show();
 </script>
 </body>
