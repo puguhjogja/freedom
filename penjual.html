@@ -21,7 +21,7 @@
         <input id="phone" inputmode="tel" placeholder="contoh: 08123456789 atau 628123456789" required>
         <small class="muted" id="phonePreview">Format terkirim: 62...</small>
       </div>
-      <div class="field"><label>Password</label><input id="password" type="password" required></div>
+      <div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" required></div>
       <button type="submit" class="btn" id="loginBtn" style="width:100%">Masuk ke Portal</button>
     </form>
     <div class="notice err" id="loginErr" role="alert"></div>
@@ -72,7 +72,7 @@
 </section>
 
 <script>
-const API = 'https://script.google.com/macros/s/AKfycbwDFNmqLXVInE3h-sDPqDzVibqtQdfM7DRz6OSi9q2-s4winFgBg0YsH6xPVW72q47u/exec';
+const API = 'https://script.google.com/macros/s/AKfycbxq9RpRx7HSatYDFd7JOaW3ViibOg0f25XJkhX4E4_rD99wBJs1EOfZeKAvWk_oz6-V/exec';
 let token = sessionStorage.getItem('tk_seller') || '';
 
 function cleanPhone(phone) {
@@ -158,7 +158,7 @@ async function login() {
   const password = document.getElementById('password').value;
   setLoginError('');
 
-  if (!phone || phone.length < 9 || !password) {
+  if (!phone || phone.length < 9 || !password.trim()) {
     setLoginError('Masukkan nomor WhatsApp yang valid dan password.');
     return;
   }
@@ -166,7 +166,6 @@ async function login() {
   btn.disabled = true;
   btn.textContent = 'Memeriksa akun...';
   try {
-    // Mengirim phone (ternormalisasi 62...) serta rawPhone agar kompatibel dengan berbagai logika Apps Script
     const d = await api('sellerLogin', { phone, rawPhone, password });
     token = d.token;
     sessionStorage.setItem('tk_seller', token);
