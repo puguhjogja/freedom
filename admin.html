@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Admin TOKO KITA</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#f3f7f6;color:#18312f;font-family:system-ui,Arial}.login{max-width:390px;margin:12vh auto;background:white;padding:28px;border-radius:20px;box-shadow:0 15px 50px #123b3815}.login h1{color:#0f766e;margin-top:0}.login input,.field input,.field select{width:100%;padding:12px;border:1px solid #dce8e4;border-radius:10px;margin:7px 0}.btn{background:#0f766e;color:white;border:0;border-radius:10px;padding:11px 15px;font-weight:700;cursor:pointer}.btn.alt{background:#e8f7f3;color:#0f766e}.app{display:none}.bar{background:#123b38;color:white;padding:18px 4%;display:flex;justify-content:space-between;align-items:center}.main{max-width:1200px;margin:25px auto;padding:0 18px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.stat,.box{background:white;border-radius:16px;padding:18px;box-shadow:0 5px 20px #123b3808}.stat b{font-size:26px;color:#0f766e}.tabs{display:flex;gap:8px;overflow:auto;margin:20px 0}.tab{border:0;border-radius:9px;padding:10px 15px;background:#e2eeea;white-space:nowrap}.tab.active{background:#0f766e;color:white}.box{margin:14px 0;overflow:auto}table{border-collapse:collapse;width:100%;min-width:720px}th,td{text-align:left;padding:12px;border-bottom:1px solid #e8efec;font-size:13px}th{color:#70817d}.field{margin:8px 0}.field label{font-size:13px;font-weight:700}.muted{font-size:12px;color:#70817d}.hidden{display:none}.actions{display:flex;gap:6px;flex-wrap:wrap}.danger{background:#b94343;color:white}.gridform{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.field input,.field select{display:block}.formactions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}@media(max-width:700px){.stats{grid-template-columns:repeat(2,1fr)}.gridform{grid-template-columns:1fr}.bar{padding:15px}}
+*{box-sizing:border-box}body{margin:0;background:#f3f7f6;color:#18312f;font-family:system-ui,Arial}.login{max-width:390px;margin:12vh auto;background:white;padding:28px;border-radius:20px;box-shadow:0 15px 50px #123b3815}.login h1{color:#0f766e;margin-top:0}.login input,.field input,.field select{width:100%;padding:12px;border:1px solid #dce8e4;border-radius:10px;margin:7px 0}.btn{background:#0f766e;color:white;border:0;border-radius:10px;padding:11px 15px;font-weight:700;cursor:pointer}.btn:disabled{opacity:.6;cursor:not-allowed}.btn.alt{background:#e8f7f3;color:#0f766e}.app{display:none}.bar{background:#123b38;color:white;padding:18px 4%;display:flex;justify-content:space-between;align-items:center}.main{max-width:1200px;margin:25px auto;padding:0 18px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.stat,.box{background:white;border-radius:16px;padding:18px;box-shadow:0 5px 20px #123b3808}.stat b{font-size:26px;color:#0f766e}.tabs{display:flex;gap:8px;overflow:auto;margin:20px 0}.tab{border:0;border-radius:9px;padding:10px 15px;background:#e2eeea;white-space:nowrap;cursor:pointer}.tab.active{background:#0f766e;color:white}.box{margin:14px 0;overflow:auto}table{border-collapse:collapse;width:100%;min-width:720px}th,td{text-align:left;padding:12px;border-bottom:1px solid #e8efec;font-size:13px}th{color:#70817d}.field{margin:8px 0}.field label{font-size:13px;font-weight:700}.muted{font-size:12px;color:#70817d}.hidden{display:none}.actions{display:flex;gap:6px;flex-wrap:wrap}.danger{background:#b94343;color:white}.gridform{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.field input,.field select{display:block}.formactions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}@media(max-width:700px){.stats{grid-template-columns:repeat(2,1fr)}.gridform{grid-template-columns:1fr}.bar{padding:15px}}
 </style>
 </head>
 <body>
@@ -13,7 +13,7 @@
   <h1>TOKO KITA</h1>
   <p>Masuk ke Dashboard Admin</p>
   <input id="pin" type="password" placeholder="Password admin" onkeydown="if(event.key==='Enter')login()">
-  <button class="btn" style="width:100%" onclick="login()">Masuk</button>
+  <button class="btn" style="width:100%" id="adminLoginBtn" onclick="login()">Masuk</button>
   <p class="muted">Password admin diverifikasi oleh Google Apps Script.</p>
 </div>
 
@@ -37,25 +37,42 @@ let token = sessionStorage.getItem('tk_admin') || '', data = {};
 
 function api(action, payload = {}) {
   return new Promise((resolve, reject) => {
-    let cb = 'adm' + Date.now() + Math.floor(Math.random() * 1000),
-        s = document.createElement('script'),
-        t = setTimeout(() => { clean(); reject(Error('Server timeout')); }, 18000);
-    function clean() { delete window[cb]; s.remove(); clearTimeout(t); }
-    window[cb] = r => { clean(); r.ok ? resolve(r.data) : reject(Error(r.error || 'Gagal')); };
-    s.onerror = () => { clean(); reject(Error('Koneksi gagal')); };
-    s.src = API + '?action=' + encodeURIComponent(action) + '&data=' + encodeURIComponent(JSON.stringify({ ...payload, token })) + '&callback=' + cb;
+    let settled = false;
+    let cb = 'adm_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+    let s = document.createElement('script');
+    let t = setTimeout(() => { finish(() => reject(Error('Server timeout'))); }, 18000);
+    function finish(fn) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(t);
+      try { delete window[cb]; } catch (_) { window[cb] = undefined; }
+      s.remove();
+      fn();
+    }
+    window[cb] = r => {
+      finish(() => {
+        if (r && r.ok) resolve(r.data);
+        else reject(Error((r && r.error) || 'Gagal'));
+      });
+    };
+    s.onerror = () => finish(() => reject(Error('Koneksi gagal. Periksa deployment Apps Script.')));
+    s.src = API + '?action=' + encodeURIComponent(action) + '&data=' + encodeURIComponent(JSON.stringify({ ...payload, token })) + '&callback=' + encodeURIComponent(cb);
     document.body.appendChild(s);
   });
 }
 
 async function login() {
+  const btn = document.getElementById('adminLoginBtn');
+  btn.disabled = true;
   try {
     let r = await api('adminLogin', { password: document.getElementById('pin').value });
     token = r.token;
     sessionStorage.setItem('tk_admin', token);
-    show();
+    await show();
   } catch (e) {
     alert(e.message);
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -172,7 +189,7 @@ function editSeller(id) {
   document.getElementById('scategory').value = s.category || '';
   document.getElementById('spass').value = '';
   document.getElementById('sstatus').value = s.status || 'Aktif';
-  document.getElementById('sexpiry').value = s.expiry || '';
+  document.getElementById('sexpiry').value = String(s.expiry || '').slice(0, 10);
   document.getElementById('snote').value = s.note || '';
   document.getElementById('sellerFormTitle').textContent = 'Edit Data Penjual (' + (s.storeCode || s.name) + ')';
   document.getElementById('cancelSellerEdit').classList.remove('hidden');
@@ -229,18 +246,9 @@ async function delSeller(id) {
   }
 }
 
-async function act(a, p) {
-  try {
-    await api(a, p);
-    await refresh();
-    alert('Berhasil diperbarui.');
-  } catch (e) {
-    alert(e.message);
-  }
-}
-
 async function approve(id) {
-  let s = data.sellers.find(x => x.id === id);
+  let s = data.sellers.find(x => String(x.id) === String(id));
+  if (!s) return;
   let days = prompt('Masa aktif dalam hari:', '30');
   if (days === null) return;
   if (!Number.isFinite(Number(days)) || Number(days) <= 0) {
@@ -248,36 +256,51 @@ async function approve(id) {
     return;
   }
   let expiry = new Date(Date.now() + Number(days) * 86400000).toISOString().slice(0, 10);
-  await api('updateSeller', { id, status: 'Aktif', expiry });
-  await refresh();
-  tab('sellers', document.querySelectorAll('.tab')[1]);
-  let storeCode = s.storeCode || ('TK-' + String(s.id).slice(0, 8).toUpperCase());
-  let msg = `PENDAFTARAN PENJUAL DISETUJUI — TOKO KITA\nHalo ${s.name}, pendaftaran Anda telah disetujui.\nKODE TOKO: ${storeCode}\nLogin penjual: ${location.href.replace(/admin\.html.*$/, '')}penjual.html\nMasa aktif sampai: ${expiry}\n\nInformasi pembayaran biaya/aktivasi:\nBank: ${data.settings.bankName || '-'}\nNo. Rekening: ${data.settings.bankAccount || '-'}\nAtas nama: ${data.settings.bankHolder || '-'}\n\nSilakan lakukan pembayaran dan kirim bukti kepada admin.`;
-  openWhatsApp(s.phone, msg);
+  try {
+    await api('updateSeller', { id, status: 'Aktif', expiry });
+    await refresh();
+    tab('sellers', document.querySelectorAll('.tab')[1]);
+    let storeCode = s.storeCode || ('TK-' + String(s.id).slice(0, 8).toUpperCase());
+    let msg = `PENDAFTARAN PENJUAL DISETUJUI — TOKO KITA\nHalo ${s.name}, pendaftaran Anda telah disetujui.\nKODE TOKO: ${storeCode}\nLogin penjual: ${location.href.replace(/admin\.html.*$/, '')}penjual.html\nMasa aktif sampai: ${expiry}\n\nInformasi pembayaran biaya/aktivasi:\nBank: ${data.settings.bankName || '-'}\nNo. Rekening: ${data.settings.bankAccount || '-'}\nAtas nama: ${data.settings.bankHolder || '-'}\n\nSilakan lakukan pembayaran dan kirim bukti kepada admin.`;
+    openWhatsApp(s.phone, msg);
+  } catch (e) {
+    alert(e.message);
+  }
 }
 
 function contactSeller(id) {
-  let s = data.sellers.find(x => x.id === id);
+  let s = data.sellers.find(x => String(x.id) === String(id));
+  if (!s) return;
   openWhatsApp(s.phone, `Halo ${s.name}, ini admin TOKO KITA.`);
 }
 
 async function confirmOrder(id) {
-  let o = data.orders.find(x => x.id === id);
-  await api('confirmOrder', { id });
-  await refresh();
-  let msg = `NOTA PEMBELIAN TOKO KITA\nNo: ${o.id}\nTanggal: ${o.date}\nPembeli: ${o.buyerName}\n${o.items.map(x => `${x.name} x${x.qty} — ${money(x.subtotal)}`).join('\n')}\nTOTAL: ${money(o.total)}\nStatus: DIKONFIRMASI\nTerima kasih telah berbelanja di TOKO KITA.`;
-  openWhatsApp(o.phone, msg);
+  let o = data.orders.find(x => String(x.id) === String(id));
+  if (!o) return;
+  try {
+    await api('confirmOrder', { id });
+    await refresh();
+    let msg = `NOTA PEMBELIAN TOKO KITA\nNo: ${o.id}\nTanggal: ${o.date}\nPembeli: ${o.buyerName}\n${o.items.map(x => `${x.name} x${x.qty} — ${money(x.subtotal)}`).join('\n')}\nTOTAL: ${money(o.total)}\nStatus: DIKONFIRMASI\nTerima kasih telah berbelanja di TOKO KITA.`;
+    openWhatsApp(o.phone, msg);
+  } catch (e) {
+    alert(e.message);
+  }
 }
 
 function viewOrder(id) {
-  let o = data.orders.find(x => x.id === id);
+  let o = data.orders.find(x => String(x.id) === String(id));
+  if (!o) return;
   alert(`Pesanan ${o.id}\n${o.items.map(x => x.name + ' x' + x.qty).join('\n')}\nTotal: ${money(o.total)}\nAlamat: ${o.address}`);
 }
 
 async function productStatus(id, status) {
-  await api('setProductStatus', { id, status });
-  await refresh();
-  tab('products', document.querySelectorAll('.tab')[2]);
+  try {
+    await api('setProductStatus', { id, status });
+    await refresh();
+    tab('products', document.querySelectorAll('.tab')[2]);
+  } catch (e) {
+    alert(e.message);
+  }
 }
 
 function resetProductForm() {
@@ -343,14 +366,20 @@ async function delProduct(id) {
 }
 
 async function saveSettings() {
-  await act('saveSettings', {
-    settings: {
-      adminPhone: cleanPhone(document.getElementById('wa').value),
-      bankHolder: document.getElementById('holder').value,
-      bankName: document.getElementById('bank').value,
-      bankAccount: document.getElementById('account').value
-    }
-  });
+  try {
+    await api('saveSettings', {
+      settings: {
+        adminPhone: cleanPhone(document.getElementById('wa').value),
+        bankHolder: document.getElementById('holder').value,
+        bankName: document.getElementById('bank').value,
+        bankAccount: document.getElementById('account').value
+      }
+    });
+    await refresh();
+    alert('Pengaturan berhasil disimpan.');
+  } catch (e) {
+    alert(e.message);
+  }
 }
 
 function cleanPhone(phone) {
